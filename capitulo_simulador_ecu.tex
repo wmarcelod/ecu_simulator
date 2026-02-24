@@ -1,0 +1,1196 @@
+% ============================================================
+% Capítulo: Simulador ECU Web-Based
+% ============================================================
+% Pacotes necessários (incluir no preâmbulo do documento principal):
+% \usepackage[utf8]{inputenc}
+% \usepackage[brazilian]{babel}
+% \usepackage{graphicx}
+% \usepackage{booktabs}
+% \usepackage{listings}
+% \usepackage{hyperref}
+% \usepackage{amsmath}
+% \usepackage{xcolor}
+% \usepackage{longtable}
+% \usepackage{float}
+
+% Configuração do listings para código
+\lstset{
+  basicstyle=\ttfamily\small,
+  breaklines=true,
+  frame=single,
+  numbers=left,
+  numberstyle=\tiny\color{gray},
+  keywordstyle=\color{blue}\bfseries,
+  commentstyle=\color{green!50!black},
+  stringstyle=\color{red!70!black},
+  showstringspaces=false,
+  tabsize=2,
+  captionpos=b,
+  xleftmargin=1.5em,
+  framexleftmargin=1.5em
+}
+
+\chapter{Simulador ECU Web-Based: Projeto, Implementação e Análise}
+\label{chap:simulador-ecu}
+
+% ============================================================
+\section{Introdução ao Simulador ECU Web-Based}
+\label{sec:introducao}
+
+Uma Unidade de Controle Eletrônico (ECU, do inglês \textit{Engine Control Unit}) é o componente central responsável pelo gerenciamento e controle dos sistemas eletrônicos de um veículo automotivo. A ECU monitora continuamente dezenas de sensores --- como temperatura do líquido de arrefecimento, rotação do motor, posição do acelerador, pressão do coletor de admissão e fluxo de ar --- e utiliza essas informações para tomar decisões em tempo real sobre injeção de combustível, ignição, controle de emissões e outros parâmetros críticos do trem de força.
+
+O simulador ECU Web-Based é um sistema de software avançado projetado para replicar os comportamentos complexos de uma ECU automotiva real dentro de um ambiente web acessível. Esta abordagem inovadora transfere simulações tradicionalmente dependentes de hardware para uma plataforma flexível e remotamente acessível, oferecendo vantagens significativas para diversas aplicações \cite{sae_j1979, elm327_datasheet}.
+
+\subsection{Motivação e Objetivos}
+
+A motivação principal por trás do desenvolvimento deste sistema é aprimorar significativamente os processos de desenvolvimento automotivo, testes e educação. Os objetivos específicos incluem:
+
+\begin{itemize}
+    \item \textbf{Desenvolvimento Automotivo:} Permitir que engenheiros projetem, prototipem e ajustem software para ECUs sem necessidade de acesso constante a veículos físicos ou hardware especializado, acelerando o ciclo de desenvolvimento.
+    \item \textbf{Testes e Validação:} Possibilitar testes abrangentes e repetíveis de ferramentas de diagnóstico, software embarcado e protocolos de comunicação veicular em um ambiente virtual controlado e seguro, reduzindo a dependência de testes caros e demorados em veículos reais.
+    \item \textbf{Aplicações Educacionais:} Proporcionar a estudantes e profissionais da área automotiva experiência prática com diagnósticos de ECU, manipulação de parâmetros e análise comportamental, sem os riscos inerentes de danificar componentes reais de veículos.
+    \item \textbf{Operação Independente (\textit{Standalone}):} Funcionar completamente sem hardware externo (Arduino, MCP2515), executando toda a simulação e processamento de comandos ELM327 localmente no navegador web.
+\end{itemize}
+
+\subsection{Visão Geral das Funcionalidades}
+
+O simulador é distinguido por diversas funcionalidades de alto nível:
+
+\begin{enumerate}
+    \item \textbf{Compatibilidade com Comandos ELM327:} Interpretação e resposta precisas a comandos AT e requisições OBD-II padrão, espelhando o comportamento de uma ECU genuína.
+    \item \textbf{Suporte a Múltiplos Modelos de Veículos:} Arquitetura modular que permite emular características específicas de diferentes marcas e modelos de veículos.
+    \item \textbf{Integração com Hardware Físico (Opcional):} Conexão com Arduino via porta serial para interação com ferramentas de diagnóstico externas através de controlador CAN MCP2515 e porta OBD-II.
+    \item \textbf{Simulação Avançada de Sensores:} Modelagem detalhada de entradas de sensores com comportamento dinâmico e realista, incluindo interdependências entre parâmetros.
+    \item \textbf{Reprodução de Dados Históricos:} Capacidade de carregar e reproduzir arquivos de log de ECU reais para análise detalhada e depuração de cenários específicos.
+    \item \textbf{Geração e Exportação de Logs:} Registro completo da sessão de simulação com exportação para análise posterior.
+    \item \textbf{Gerenciamento de Códigos de Diagnóstico (DTCs):} Interface completa para adicionar, remover e gerenciar códigos de falha armazenados, pendentes e permanentes.
+\end{enumerate}
+
+% ============================================================
+\section{Fundamentação Teórica}
+\label{sec:fundamentacao}
+
+Esta seção apresenta os conceitos teóricos fundamentais que sustentam o desenvolvimento do simulador ECU, abrangendo os protocolos de comunicação, padrões de diagnóstico e tecnologias web utilizadas.
+
+\subsection{Protocolo OBD-II e SAE J1979}
+
+O OBD-II (\textit{On-Board Diagnostics II}) é um sistema padronizado de diagnóstico embarcado em veículos automotivos, mandatório nos Estados Unidos desde 1996 para veículos leves e desde 2008 utilizando exclusivamente o protocolo ISO 15765-4 (CAN) como base \cite{sae_j1979}. O padrão SAE J1979 define os serviços de diagnóstico (modos) e os Identificadores de Parâmetros (PIDs) utilizados na comunicação OBD-II.
+
+A comunicação OBD-II opera através de diversos ``Modos'' (ou serviços), cada um fornecendo um tipo diferente de informação diagnóstica. Os modos mais relevantes para o simulador são apresentados na Tabela~\ref{tab:modos-obd}.
+
+\begin{table}[H]
+\centering
+\caption{Modos de Diagnóstico OBD-II implementados no simulador.}
+\label{tab:modos-obd}
+\begin{tabular}{@{}cll@{}}
+\toprule
+\textbf{Modo (Hex)} & \textbf{Descrição} & \textbf{Uso no Simulador} \\
+\midrule
+01 & Dados atuais do trem de força & Leitura em tempo real de sensores \\
+02 & Dados de \textit{freeze frame} & Snapshot no momento do DTC \\
+03 & DTCs armazenados & Códigos de falha confirmados \\
+04 & Limpar informações diagnósticas & Reset de DTCs e \textit{freeze frame} \\
+07 & DTCs pendentes & Falhas detectadas não confirmadas \\
+09 & Informações do veículo & VIN e IDs de calibração \\
+0A & DTCs permanentes & Códigos não elimináveis por reset \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{ELM327: Comandos AT e PIDs}
+
+O ELM327 é um circuito integrado interpretador de protocolos OBD-II amplamente utilizado como interface entre ferramentas de diagnóstico e a ECU do veículo. Ele traduz comandos de alto nível (comandos AT e requisições de PIDs) em mensagens do protocolo de comunicação subjacente (CAN, ISO 9141-2, KWP2000, etc.) \cite{elm327_datasheet}.
+
+Os comandos AT (\textit{Attention}) são utilizados para configurar a interface ELM327, selecionar protocolos e gerenciar a comunicação. A Tabela~\ref{tab:comandos-at} apresenta os comandos AT essenciais implementados no simulador.
+
+\begin{table}[H]
+\centering
+\caption{Comandos AT do ELM327 implementados no simulador.}
+\label{tab:comandos-at}
+\begin{tabular}{@{}llll@{}}
+\toprule
+\textbf{Comando} & \textbf{Descrição} & \textbf{Grupo} & \textbf{Resposta} \\
+\midrule
+ATZ & Reset completo & Geral & \texttt{ELM327 v1.5} \\
+ATE0 / ATE1 & Echo Off / On & Geral & \texttt{OK} \\
+ATL0 / ATL1 & Linefeeds Off / On & Geral & \texttt{OK} \\
+ATH0 / ATH1 & Headers Off / On & OBD & \texttt{OK} \\
+ATS0 / ATS1 & Espaços Off / On & OBD & \texttt{OK} \\
+ATSP\textit{x} & Definir protocolo & OBD & \texttt{OK} \\
+ATRV & Ler tensão da bateria & Voltagem & \texttt{13.8V} \\
+ATDP & Descrever protocolo atual & OBD & Nome do protocolo \\
+ATDPN & Protocolo por número & OBD & Número do protocolo \\
+AT@1 & Descrição do dispositivo & Geral & \texttt{ELM327 v1.5} \\
+AT@2 & Identificador do dispositivo & Geral & \texttt{ECU\_SIM\_WEB} \\
+ATCAF0/1 & Formatação CAN & CAN & \texttt{OK} \\
+ATCFC0/1 & Controle de fluxo CAN & CAN & \texttt{OK} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+A sequência típica de inicialização do simulador envolve:
+\begin{enumerate}
+    \item \texttt{ATZ} --- Reset do ELM327
+    \item \texttt{ATE0} --- Desabilitar echo
+    \item \texttt{ATL0} --- Desabilitar linefeeds
+    \item \texttt{ATH1} --- Habilitar headers (para contexto completo dos frames CAN)
+    \item \texttt{ATS0} --- Desabilitar espaços
+    \item \texttt{ATSP0} --- Busca automática de protocolo (ou \texttt{ATSP6} para CAN 11-bit, 500kbps)
+\end{enumerate}
+
+\subsection{Barramento CAN (\textit{Controller Area Network})}
+
+O barramento CAN é um padrão de comunicação desenvolvido pela Robert Bosch GmbH na década de 1980 para reduzir a complexidade de fiação em veículos \cite{bosch_can}. Veículos modernos contêm dezenas de ECUs que trocam dados através de redes CAN. O CAN opera como um sistema \textit{multi-master broadcast} onde dispositivos compartilham um único par de fios trançados, comunicando-se através de mensagens.
+
+Cada mensagem CAN consiste em:
+\begin{itemize}
+    \item \textbf{Identificador (ID):} 11 bits (padrão) ou 29 bits (estendido), que identifica o tipo de mensagem e determina a prioridade (ID menor = maior prioridade).
+    \item \textbf{Campo de Controle:} Contém o \textit{Data Length Code} (DLC), especificando 0 a 8 bytes de dados.
+    \item \textbf{Campo de Dados:} O payload real (0--8 bytes).
+    \item \textbf{CRC:} Verificação de redundância cíclica de 16 bits para detecção de erros.
+    \item \textbf{ACK:} Confirmação de recepção bem-sucedida por pelo menos um nó.
+\end{itemize}
+
+Para comunicação OBD-II sobre CAN (ISO 15765-4), a estrutura típica utiliza:
+\begin{itemize}
+    \item \textbf{Requisição:} CAN ID \texttt{0x7DF} (endereço funcional para todas as ECUs), com payload contendo o número de bytes de dados, o modo de serviço e o PID solicitado.
+    \item \textbf{Resposta:} CAN ID \texttt{0x7E8} (endereço físico da ECU do motor), com payload contendo o modo de resposta (modo original + \texttt{0x40}), o PID e os bytes de dados.
+\end{itemize}
+
+\subsection{Web Serial API}
+
+A Web Serial API permite que aplicações web comuniquem diretamente com dispositivos seriais, como microcontroladores Arduino, facilitando a troca bidirecional de dados em tempo real entre o navegador e o hardware \cite{web_serial_api}. A API é assíncrona por design, prevenindo bloqueio da interface do usuário durante a comunicação. O suporte está disponível principalmente em navegadores baseados em Chromium (Chrome, Edge, Opera).
+
+O fluxo básico de utilização da Web Serial API envolve:
+
+\begin{lstlisting}[language=JavaScript, caption={Verificação de suporte e conexão via Web Serial API.}, label={lst:web-serial}]
+// Verificacao de suporte
+if ("serial" in navigator) {
+  // Web Serial API suportada
+}
+
+// Selecao e abertura da porta
+const port = await navigator.serial.requestPort();
+await port.open({ baudRate: 115200 });
+
+// Leitura de dados
+const textDecoder = new TextDecoderStream();
+port.readable.pipeTo(textDecoder.writable);
+const reader = textDecoder.readable.getReader();
+while (true) {
+  const { value, done } = await reader.read();
+  if (done) break;
+  console.log(value); // string recebida
+}
+
+// Escrita de dados
+const encoder = new TextEncoderStream();
+encoder.readable.pipeTo(port.writable);
+const writer = encoder.writable.getWriter();
+await writer.write("ATZ\r");
+\end{lstlisting}
+
+% ============================================================
+\section{Capacidades de Simulação}
+\label{sec:capacidades}
+
+O simulador implementa uma emulação abrangente do protocolo ELM327, cobrindo comandos AT, múltiplos modos de diagnóstico OBD-II e geração dinâmica de dados realistas.
+
+\subsection{Emulação ELM327}
+
+O motor de simulação processa comandos recebidos em duas categorias principais:
+
+\begin{enumerate}
+    \item \textbf{Comandos AT:} Comandos de configuração prefixados com ``AT'', processados internamente para alterar o estado de configuração do simulador (echo, headers, espaços, linefeeds, protocolo).
+    \item \textbf{Comandos OBD-II:} Sequências hexadecimais representando requisições de modos e PIDs, processadas pelo motor de simulação para gerar respostas realistas baseadas no estado atual dos sensores virtuais.
+\end{enumerate}
+
+As respostas seguem o formato padrão do ELM327:
+\begin{itemize}
+    \item \texttt{OK} para execução bem-sucedida de comandos AT.
+    \item Dados específicos para requisições informacionais (ex: \texttt{ELM327 v1.5} para \texttt{AT@1}).
+    \item \texttt{?} para comandos inválidos.
+    \item \texttt{NO DATA} quando um comando válido não possui dados aplicáveis.
+\end{itemize}
+
+\subsection{PIDs OBD-II Mode 01}
+
+O Mode 01 é o modo principal para monitoramento em tempo real dos parâmetros do trem de força. A Tabela~\ref{tab:pids-mode01} apresenta todos os PIDs implementados no simulador com suas respectivas descrições, fórmulas de conversão e faixas de simulação.
+
+\begin{longtable}{@{}cllclll@{}}
+\caption{PIDs do Mode 01 implementados no simulador ECU.} \label{tab:pids-mode01} \\
+\toprule
+\textbf{PID} & \textbf{Descrição} & \textbf{Bytes} & \textbf{Unidade} & \textbf{Fórmula} & \textbf{Faixa} \\
+\midrule
+\endfirsthead
+\multicolumn{6}{c}{\tablename\ \thetable{} -- continuação} \\
+\toprule
+\textbf{PID} & \textbf{Descrição} & \textbf{Bytes} & \textbf{Unidade} & \textbf{Fórmula} & \textbf{Faixa} \\
+\midrule
+\endhead
+\midrule
+\multicolumn{6}{r}{Continua na próxima página} \\
+\endfoot
+\bottomrule
+\endlastfoot
+00 & PIDs suportados [01--20] & 4 & Bit encoded & Bits A7--D0 & Bitmap \\
+01 & Status do monitor & 4 & Bit encoded & MIL(A7), DTCs(A6--A0) & MIL on/off \\
+04 & Carga do motor & 1 & \% & $A \times 100 / 255$ & 0--100 \\
+05 & Temp. líq. arrefecimento & 1 & °C & $A - 40$ & 80--105 \\
+0B & Pressão absoluta admissão & 1 & kPa & $A$ & 20--105 \\
+0C & Rotação do motor (RPM) & 2 & rpm & $(A \times 256 + B) / 4$ & 600--8000 \\
+0D & Velocidade do veículo & 1 & km/h & $A$ & 0--280 \\
+0E & Avanço de ignição & 1 & ° & $(A - 128) / 2$ & $-15$ a $45$ \\
+0F & Temp. ar de admissão & 1 & °C & $A - 40$ & 10--60 \\
+10 & Fluxo de ar MAF & 2 & g/s & $(A \times 256 + B) / 100$ & 1--500 \\
+11 & Posição do acelerador & 1 & \% & $A \times 100 / 255$ & 0--100 \\
+1F & Tempo de funcionamento & 2 & s & $A \times 256 + B$ & 0--65535 \\
+20 & PIDs suportados [21--40] & 4 & Bit encoded & Bits A7--D0 & Bitmap \\
+2F & Nível de combustível & 1 & \% & $A \times 100 / 255$ & 0--100 \\
+33 & Pressão barométrica & 1 & kPa & $A$ & 95--105 \\
+40 & PIDs suportados [41--60] & 4 & Bit encoded & Bits A7--D0 & Bitmap \\
+42 & Tensão do módulo & 2 & V & $(A \times 256 + B) / 1000$ & 12--14.8 \\
+46 & Temp. ambiente & 1 & °C & $A - 40$ & $-10$ a $45$ \\
+4F & Temp. óleo do motor & 1 & °C & $A - 40$ & 70--140 \\
+\end{longtable}
+
+\subsection{Modos Diagnósticos Implementados}
+
+Além do Mode 01 para dados em tempo real, o simulador implementa os seguintes modos diagnósticos:
+
+\textbf{Mode 02 --- Dados de \textit{Freeze Frame}:} Armazena um snapshot dos parâmetros do motor no momento em que um DTC relacionado a emissões foi registrado. Se nenhum DTC estiver armazenado, a requisição retorna \texttt{NO DATA}. Na implementação atual, os dados de \textit{freeze frame} são equivalentes aos dados do Mode 01 no instante da consulta.
+
+\textbf{Mode 03 --- DTCs Armazenados:} Retorna os códigos de diagnóstico de falha (DTCs) confirmados e armazenados. O formato de resposta inclui o byte de contagem seguido dos pares de bytes codificados para cada DTC. Exemplo: para os DTCs P0130 e P0420, a resposta seria \texttt{43 02 01 30 04 20}.
+
+\textbf{Mode 04 --- Limpar/Resetar Informações:} Permite limpar DTCs armazenados, dados de \textit{freeze frame} e resetar informações de monitoramento diagnóstico. Após a execução, o indicador MIL é desativado. Nota: DTCs permanentes (Mode 0A) \textbf{não} são afetados por este comando.
+
+\textbf{Mode 07 --- DTCs Pendentes:} Simula falhas intermitentes detectadas durante o ciclo de condução atual ou último, que ainda não foram confirmadas como DTCs armazenados.
+
+\textbf{Mode 09 --- Informações do Veículo:} Fornece informações estáticas do veículo:
+\begin{itemize}
+    \item PID 02: VIN (\textit{Vehicle Identification Number}) --- ex: \texttt{1HGBH41JXMN109186}
+    \item PID 04: ID de Calibração --- ex: \texttt{SED20L\_CAL\_V1}
+\end{itemize}
+
+\textbf{Mode 0A --- DTCs Permanentes:} Retorna DTCs que permanecem armazenados mesmo após um comando de limpeza (Mode 04), até que o sistema confirme que a falha foi resolvida ao longo de múltiplos ciclos de condução.
+
+\subsection{Formato de Resposta}
+
+O formato das respostas OBD-II segue a estrutura padrão do protocolo CAN. O modo de resposta é calculado como o modo de requisição original somado a \texttt{0x40}. Por exemplo, uma requisição Mode 01 PID 0C (RPM) com valor de 750 rpm:
+
+\begin{equation}
+\text{RPM} = \frac{(A \times 256) + B}{4} = 750 \implies A \times 256 + B = 3000
+\end{equation}
+
+Portanto, $A = 0\text{x}0B$ e $B = 0\text{x}B8$, resultando na resposta:
+\begin{itemize}
+    \item Sem headers: \texttt{41 0C 0B B8}
+    \item Com headers: \texttt{7E8 04 41 0C 0B B8}
+\end{itemize}
+
+\subsection{Geração Dinâmica de Dados}
+
+O simulador não gera valores estáticos; em vez disso, implementa variações dinâmicas de parâmetros ao longo do tempo, mimetizando a operação real do veículo. Isso inclui:
+
+\begin{itemize}
+    \item \textbf{Dados em série temporal:} PIDs como RPM, velocidade e carga do motor flutuam para simular condições de condução.
+    \item \textbf{Parâmetros interdependentes:} Valores de certos PIDs são correlacionados (ex: aumento de RPM levando a aumento do fluxo MAF).
+    \item \textbf{Fatores ambientais:} Temperatura ambiente e temperatura do líquido de arrefecimento variam para refletir dinâmicas térmicas realistas.
+    \item \textbf{Estados diagnósticos:} O simulador gera cenários dinâmicos para status MIL e contagens variáveis de DTCs.
+\end{itemize}
+
+% ============================================================
+\section{Arquitetura do Sistema}
+\label{sec:arquitetura}
+
+O simulador ECU Web-Based é construído sobre uma arquitetura em camadas que separa claramente as responsabilidades entre o frontend (interface do usuário e motor de simulação), a lógica de comunicação com hardware e a camada de dados.
+
+\subsection{Visão Geral da Arquitetura}
+
+A arquitetura do sistema é composta por três componentes principais:
+
+\begin{enumerate}
+    \item \textbf{Frontend / Motor de Simulação:} Reside no navegador web e serve como interface do usuário principal. É responsável pela renderização dos dados de simulação, exibição de controles de interação e execução do motor de simulação ECU. Todo o processamento de comandos ELM327 e geração de dados de sensores ocorre no lado do cliente.
+    
+    \item \textbf{Interface de Comunicação Serial:} Camada opcional que utiliza a Web Serial API para conectar o navegador a um dispositivo Arduino via porta serial USB, permitindo interação com hardware externo.
+    
+    \item \textbf{Interface de Hardware (Opcional):} Composta por um microcontrolador Arduino equipado com um controlador CAN MCP2515, conectado fisicamente a uma porta OBD-II padrão. Esta interface permite enviar e receber sinais de/para dispositivos OBD-II externos.
+\end{enumerate}
+
+\subsection{Tecnologias Utilizadas}
+
+O simulador é implementado utilizando um \textit{stack} tecnológico moderno para desenvolvimento web:
+
+\begin{table}[H]
+\centering
+\caption{Stack tecnológico do simulador ECU.}
+\label{tab:tecnologias}
+\begin{tabular}{@{}lll@{}}
+\toprule
+\textbf{Tecnologia} & \textbf{Versão} & \textbf{Função} \\
+\midrule
+TypeScript & 5.x & Linguagem principal (tipagem estática) \\
+React & 18.x & Framework de interface do usuário \\
+Vite & 5.x & Bundler e servidor de desenvolvimento \\
+Tailwind CSS & 3.x & Framework de estilização utilitária \\
+Shadcn/ui & --- & Biblioteca de componentes UI \\
+Recharts & 2.x & Biblioteca de gráficos para visualização \\
+Web Serial API & --- & Comunicação serial com hardware \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Modo Standalone vs. Hardware}
+
+Uma característica fundamental do simulador é sua capacidade de operar em dois modos distintos:
+
+\textbf{Modo Standalone (Padrão):} O simulador funciona completamente sem hardware externo. Todo o processamento de comandos ELM327, geração de dados de sensores e lógica de diagnóstico é executado localmente no navegador web. Este modo é ideal para desenvolvimento de software, testes de ferramentas de diagnóstico e fins educacionais, pois não requer nenhum investimento em hardware.
+
+\textbf{Modo Hardware (Opcional):} Quando conectado a um Arduino via Web Serial API, o simulador pode receber comandos de ferramentas de diagnóstico OBD-II externas conectadas ao Arduino através do controlador CAN MCP2515. Neste modo, o simulador atua como uma ECU virtual, respondendo a requisições reais de scanners automotivos.
+
+A transição entre os modos é transparente para o usuário. O indicador de status na interface mostra ``STANDALONE'' quando nenhum hardware está conectado, e ``SERIAL OK'' quando uma conexão serial está ativa.
+
+\subsection{Estrutura de Componentes}
+
+A aplicação é organizada nos seguintes componentes principais:
+
+\begin{table}[H]
+\centering
+\caption{Componentes principais da aplicação.}
+\label{tab:componentes}
+\begin{tabular}{@{}lp{9cm}@{}}
+\toprule
+\textbf{Componente} & \textbf{Responsabilidade} \\
+\midrule
+\texttt{ecu-simulator.ts} & Motor de simulação ECU: processamento de comandos, geração de dados, perfis de veículos, logging \\
+\texttt{serial-connection.ts} & Integração com Web Serial API para comunicação com Arduino \\
+\texttt{Dashboard.tsx} & Painel principal com gauges de telemetria, controles e dados do veículo \\
+\texttt{Terminal.tsx} & Terminal de comandos ELM327 com histórico e comandos rápidos \\
+\texttt{SensorPanel.tsx} & Painel de simulação de sensores com gráficos em tempo real e controles manuais \\
+\texttt{PlaybackPanel.tsx} & Componente de reprodução de dados históricos de ECU \\
+\texttt{DTCPanel.tsx} & Interface de gerenciamento de códigos de diagnóstico de falha \\
+\texttt{Index.tsx} & Página principal integrando todos os componentes \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% ============================================================
+\section{Integração com Hardware}
+\label{sec:hardware}
+
+Embora o simulador funcione de forma independente, a integração com hardware físico permite interação com ferramentas de diagnóstico OBD-II reais, ampliando significativamente as possibilidades de teste e validação.
+
+\subsection{Arduino e MCP2515}
+
+Placas Arduino não possuem interfaces CAN nativas, necessitando controladores externos como o Microchip MCP2515 para interagir com o barramento CAN de um veículo \cite{mcp2515_datasheet}. O MCP2515 é um controlador CAN autônomo compatível com CAN 2.0B que gerencia funções críticas como transmissão, recepção, arbitragem e detecção de erros de mensagens.
+
+Módulos MCP2515 tipicamente integram o controlador e um transceiver CAN (TJA1050 ou MCP2551), que converte os sinais de nível lógico do MCP2515 nas tensões diferenciais requeridas pelas linhas CAN\_H e CAN\_L do barramento CAN.
+
+As especificações do módulo MCP2515 são apresentadas na Tabela~\ref{tab:mcp2515-specs}.
+
+\begin{table}[H]
+\centering
+\caption{Especificações do módulo MCP2515.}
+\label{tab:mcp2515-specs}
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{Parâmetro} & \textbf{Valor} \\
+\midrule
+Tensão de operação & 4,75 a 5,25V \\
+Especificação CAN & Versão 2.0B \\
+Taxa máxima de dados & 1 Mb/s \\
+Frequência do cristal & 8MHz (comum) \\
+Velocidade da interface SPI & Até 10 MHz \\
+Buffers de transmissão & 3 \\
+Buffers de recepção & 2 \\
+Filtros de mensagem & 6 filtros de 29 bits \\
+Máscaras & 2 máscaras de 29 bits \\
+Saída de interrupção & 1 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Conexões de Hardware}
+
+\subsubsection{Pinagem SPI: MCP2515 para Arduino Uno}
+
+O módulo MCP2515 comunica-se com o Arduino utilizando a Interface Periférica Serial (SPI). A Tabela~\ref{tab:pinagem-spi} detalha a fiação típica.
+
+\begin{table}[H]
+\centering
+\caption{Conexões SPI entre MCP2515 e Arduino Uno.}
+\label{tab:pinagem-spi}
+\begin{tabular}{@{}lll@{}}
+\toprule
+\textbf{Pino MCP2515} & \textbf{Pino Arduino Uno} & \textbf{Função} \\
+\midrule
+VCC & 5V & Alimentação \\
+GND & GND & Terra \\
+CS (\textit{Chip Select}) & D10 (ou D9) & Seleção SPI \\
+SO (MISO) & D12 & \textit{Master In Slave Out} \\
+SI (MOSI) & D11 & \textit{Master Out Slave In} \\
+SCK & D13 & Clock SPI \\
+INT (\textit{Interrupt}) & D2 & Saída de interrupção \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsubsection{Pinagem OBD-II}
+
+Para conectar à porta OBD-II do veículo, os seguintes pinos são utilizados, conforme a Tabela~\ref{tab:pinagem-obd}.
+
+\begin{table}[H]
+\centering
+\caption{Conexões OBD-II para o módulo MCP2515.}
+\label{tab:pinagem-obd}
+\begin{tabular}{@{}lll@{}}
+\toprule
+\textbf{Pino OBD-II} & \textbf{Conexão} & \textbf{Função} \\
+\midrule
+Pino 6 & CANH do MCP2515 & CAN High \\
+Pino 14 & CANL do MCP2515 & CAN Low \\
+Pino 4 & GND do Arduino & Terra do chassi \\
+Pino 5 & GND do Arduino & Terra de sinal \\
+Pino 16 & Regulador 5V $\rightarrow$ Arduino & Alimentação (12V bateria) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+A terminação adequada do barramento CAN é crucial: resistores de 120$\Omega$ são necessários em ambas as extremidades do barramento para prevenir reflexões de sinal. Muitos módulos MCP2515 oferecem um resistor de terminação selecionável via jumper.
+
+\subsection{Bibliotecas Arduino}
+
+Diversas bibliotecas Arduino simplificam a comunicação com o MCP2515 e a implementação do protocolo OBD-II:
+
+\begin{itemize}
+    \item \textbf{\texttt{autowp/arduino-mcp2515}:} Suporta CAN V2.0B com frames de 11 e 29 bits, oferecendo funcionalidades abrangentes para modos de operação, configurações de bitrate e configuração de filtros/máscaras.
+    \item \textbf{\texttt{mcp\_can}:} Biblioteca amplamente utilizada que fornece funções essenciais para envio e recepção de mensagens CAN, incluindo configuração de máscaras e filtros.
+    \item \textbf{\texttt{sandeepmistry/arduino-OBD2}:} Projetada especificamente para leitura de dados OBD-II sobre CAN, oferecendo uma API para interações OBD-II específicas.
+\end{itemize}
+
+\subsection{Web Serial API: Ponte Navegador-Arduino}
+
+A integração entre o navegador e o Arduino é realizada através da Web Serial API, que permite comunicação bidirecional em tempo real. O Código~\ref{lst:serial-connection} apresenta a implementação simplificada da classe de conexão serial utilizada no simulador.
+
+\begin{lstlisting}[language=JavaScript, caption={Classe de conexão serial simplificada.}, label={lst:serial-connection}]
+export class SerialConnection {
+  private port: SerialPort | null = null;
+  private reader: ReadableStreamDefaultReader | null = null;
+  private writer: WritableStreamDefaultWriter | null = null;
+
+  static isSupported(): boolean {
+    return 'serial' in navigator;
+  }
+
+  async connect(): Promise<void> {
+    this.port = await navigator.serial.requestPort();
+    await this.port.open({ baudRate: 115200 });
+    // Configurar streams de leitura e escrita
+    const textDecoder = new TextDecoderStream();
+    this.port.readable.pipeTo(textDecoder.writable);
+    this.reader = textDecoder.readable.getReader();
+    const textEncoder = new TextEncoderStream();
+    textEncoder.readable.pipeTo(this.port.writable);
+    this.writer = textEncoder.writable.getWriter();
+    // Iniciar loop de leitura
+    this.readLoop();
+  }
+
+  async write(data: string): Promise<void> {
+    await this.writer?.write(data);
+  }
+
+  async disconnect(): Promise<void> {
+    this.reader?.releaseLock();
+    this.writer?.releaseLock();
+    await this.port?.close();
+  }
+}
+\end{lstlisting}
+
+\subsection{Protocolos de Comunicação}
+
+A comunicação entre o navegador e o Arduino utiliza strings delimitadas com marcadores de fim de mensagem. O protocolo segue o padrão ELM327:
+
+\begin{itemize}
+    \item \textbf{Navegador $\rightarrow$ Arduino:} Comandos AT ou requisições OBD-II terminados com \texttt{\textbackslash r} (retorno de carro).
+    \item \textbf{Arduino $\rightarrow$ Navegador:} Respostas terminadas com \texttt{\textbackslash r\textbackslash n>} (retorno de carro, nova linha e prompt ``>'').
+\end{itemize}
+
+% ============================================================
+\section{Sistema de Perfis Multi-Modelo}
+\label{sec:perfis}
+
+O simulador implementa um sistema de perfis de veículos que permite emular características específicas de diferentes tipos de veículos, cada um com seus próprios parâmetros de operação, faixas de sensores e códigos de diagnóstico.
+
+\subsection{Arquitetura de Perfis}
+
+Cada perfil de veículo é definido como uma estrutura de dados tipada que encapsula todas as informações necessárias para a simulação. A interface TypeScript que define um perfil é apresentada no Código~\ref{lst:vehicle-profile}.
+
+\begin{lstlisting}[language=JavaScript, caption={Interface TypeScript para perfil de veículo.}, label={lst:vehicle-profile}]
+export interface VehicleProfile {
+  id: string;           // Identificador unico
+  name: string;         // Nome descritivo
+  type: 'sedan' | 'suv' | 'sport';  // Tipo do veiculo
+  vin: string;          // Numero de Identificacao do Veiculo
+  calibrationId: string; // ID de calibracao da ECU
+  supportedPids: Record<string, number[]>;  // PIDs suportados
+  pidRanges: Record<string, {
+    min: number;   // Valor minimo do sensor
+    max: number;   // Valor maximo do sensor
+    idle: number;  // Valor em marcha lenta
+  }>;
+  dtcs: {
+    stored: string[];     // DTCs armazenados
+    pending: string[];    // DTCs pendentes
+    permanent: string[];  // DTCs permanentes
+  };
+  description: string;   // Descricao do veiculo
+}
+\end{lstlisting}
+
+\subsection{Parâmetros Configuráveis}
+
+Cada perfil define os seguintes parâmetros configuráveis:
+
+\begin{itemize}
+    \item \textbf{PIDs Suportados:} Bitmap de 4 bytes para cada faixa de PIDs (00, 20, 40), indicando quais PIDs o veículo simulado suporta.
+    \item \textbf{Faixas de Sensores:} Para cada sensor, são definidos os valores mínimo, máximo e de marcha lenta (\textit{idle}), garantindo que os dados gerados permaneçam dentro de limites realistas.
+    \item \textbf{DTCs Pré-configurados:} Conjuntos de códigos de diagnóstico armazenados, pendentes e permanentes específicos para cada modelo.
+    \item \textbf{Informações de Identificação:} VIN e ID de calibração únicos para cada perfil.
+\end{itemize}
+
+\subsection{Perfis Implementados}
+
+O simulador inclui três perfis de veículos pré-configurados, cujas características são comparadas na Tabela~\ref{tab:perfis-comparacao}.
+
+\begin{table}[H]
+\centering
+\caption{Comparação dos perfis de veículos implementados.}
+\label{tab:perfis-comparacao}
+\begin{tabular}{@{}llll@{}}
+\toprule
+\textbf{Parâmetro} & \textbf{Sedan 2.0L} & \textbf{SUV 3.5L V6} & \textbf{Sport 3.0L Turbo} \\
+\midrule
+RPM (idle) & 750 rpm & 700 rpm & 850 rpm \\
+RPM (máx.) & 6.500 rpm & 6.000 rpm & 8.000 rpm \\
+Velocidade (máx.) & 200 km/h & 220 km/h & 280 km/h \\
+Temp. arrefec. (idle) & 90°C & 92°C & 88°C \\
+Carga motor (idle) & 20\% & 25\% & 18\% \\
+MAP (máx.) & 100 kPa & 105 kPa & 250 kPa \\
+MAF (máx.) & 250 g/s & 350 g/s & 500 g/s \\
+VIN & 1HGBH41JXMN... & 5YJSA1DG9DFP... & WBAJB0C51JB0... \\
+DTCs armazenados & P0130, P0420 & P0300, P0442 & P0172, P0301 \\
+DTCs pendentes & P0171 & P0455 & P0128 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+O perfil \textbf{Sedan 2.0L} representa um veículo de passeio típico com motor 4 cilindros, com faixas de operação conservadoras. O perfil \textbf{SUV 3.5L V6} simula um veículo utilitário esportivo com maior torque e consumo de combustível. O perfil \textbf{Sport 3.0L Turbo} emula um cupê esportivo turboalimentado de alto desempenho, com faixas de RPM e velocidade significativamente maiores, além de pressão MAP elevada (até 250 kPa) devido à turboalimentação.
+
+% ============================================================
+\section{Simulação Dinâmica de Sensores}
+\label{sec:sensores}
+
+A simulação dinâmica de sensores é o componente central que confere realismo ao simulador. Esta seção detalha os modelos matemáticos, interdependências entre parâmetros e cenários de simulação implementados.
+
+\subsection{Modelos Matemáticos}
+
+O motor de simulação utiliza um sistema de \textit{tick} com intervalo de 200ms, onde cada ciclo atualiza todos os valores de sensores baseado no cenário ativo e nas interdependências entre parâmetros. A função de ruído gaussiano é aplicada para simular variações naturais:
+
+\begin{equation}
+\text{valor}_{\text{ruidoso}} = \text{valor}_{\text{base}} + (\text{rand}() - 0.5) \times 2 \times \text{amplitude}
+\label{eq:ruido}
+\end{equation}
+
+onde $\text{rand}()$ retorna um valor aleatório no intervalo $[0, 1]$ e $\text{amplitude}$ controla a intensidade do ruído. Todos os valores são limitados (\textit{clamped}) dentro das faixas definidas pelo perfil do veículo:
+
+\begin{equation}
+\text{valor}_{\text{final}} = \max(\text{min}, \min(\text{max}, \text{valor}_{\text{ruidoso}}))
+\label{eq:clamp}
+\end{equation}
+
+\subsection{Parâmetros Interdependentes}
+
+O simulador modela interdependências realistas entre parâmetros:
+
+\begin{itemize}
+    \item \textbf{Temperatura do líquido de arrefecimento:} Aumenta gradualmente quando a carga do motor excede 50\% e diminui lentamente caso contrário:
+    \begin{equation}
+    T_{\text{coolant}}(t+1) = T_{\text{coolant}}(t) + 
+    \begin{cases}
+    +0.05 + \epsilon & \text{se carga} > 50\% \\
+    -0.02 + \epsilon & \text{caso contrário}
+    \end{cases}
+    \end{equation}
+    onde $\epsilon$ é o ruído com amplitude 0,1°C.
+    
+    \item \textbf{Temperatura do óleo:} Comportamento similar à temperatura do arrefecimento, com taxa de aquecimento de 0,04°C/tick e resfriamento de 0,015°C/tick.
+    
+    \item \textbf{Fluxo MAF:} Diretamente proporcional à rotação do motor, com fator variável por cenário:
+    \begin{equation}
+    \text{MAF} = \text{RPM} \times k + \epsilon
+    \end{equation}
+    onde $k$ varia de 0,015 (desaceleração) a 0,04 (aceleração).
+    
+    \item \textbf{Nível de combustível:} Decresce continuamente a uma taxa de 0,001\%/tick, simulando consumo gradual.
+\end{itemize}
+
+\subsection{Cenários de Simulação}
+
+O simulador implementa quatro cenários de condução distintos, cada um com comportamento específico dos sensores:
+
+\subsubsection{Marcha Lenta (\textit{Idle})}
+
+No cenário de marcha lenta, os parâmetros oscilam em torno dos valores de \textit{idle} definidos no perfil:
+\begin{itemize}
+    \item RPM: valor idle $\pm$ 30 rpm de ruído
+    \item Velocidade: 0 km/h
+    \item Carga do motor: valor idle $\pm$ 3\%
+    \item Acelerador: valor idle $\pm$ 2\%
+\end{itemize}
+
+\subsubsection{Aceleração}
+
+Durante a aceleração, os parâmetros aumentam progressivamente:
+\begin{itemize}
+    \item RPM: incremento de $\sim$80 rpm/tick até 70\% do máximo
+    \item Velocidade: incremento de $\sim$3 km/h/tick até 80\% do máximo
+    \item Carga do motor: $\sim$60\% com variação de $\pm$10\%
+    \item Acelerador: $\sim$50\% com variação de $\pm$15\%
+    \item MAP: $\sim$70 kPa com variação de $\pm$10 kPa
+\end{itemize}
+
+\subsubsection{Cruzeiro}
+
+No cenário de cruzeiro, os parâmetros se estabilizam em valores intermediários:
+\begin{itemize}
+    \item RPM: $\sim$35\% do máximo com ruído de $\pm$50 rpm
+    \item Velocidade: $\sim$50\% do máximo com ruído de $\pm$2 km/h
+    \item Carga do motor: $\sim$35\% com variação de $\pm$5\%
+\end{itemize}
+
+\subsubsection{Desaceleração}
+
+Na desaceleração, os parâmetros diminuem gradualmente:
+\begin{itemize}
+    \item RPM: decremento de $\sim$60 rpm/tick até o valor de idle
+    \item Velocidade: decremento de $\sim$4 km/h/tick até zero
+    \item Carga do motor: $\sim$10\% com variação de $\pm$5\%
+    \item Transição automática para marcha lenta quando velocidade $\leq$ 0 e RPM $\leq$ idle + 100
+\end{itemize}
+
+\subsection{Ruído e Latência}
+
+Para aumentar o realismo, o simulador incorpora:
+
+\begin{itemize}
+    \item \textbf{Ruído gaussiano:} Aplicado a todos os sensores com amplitudes calibradas por parâmetro (ex: 30 rpm para RPM em idle, 0,1°C para temperaturas).
+    \item \textbf{Inércia térmica:} Temperaturas (arrefecimento, óleo) mudam gradualmente, simulando a inércia térmica real dos fluidos.
+    \item \textbf{Taxa de atualização:} O motor de simulação opera a 5 Hz (200ms/tick), proporcionando atualizações suaves sem sobrecarregar o navegador.
+\end{itemize}
+
+% ============================================================
+\section{Playback de Dados Históricos}
+\label{sec:playback}
+
+A capacidade de reproduzir dados históricos de ECU é fundamental para validação de cenários simulados e depuração de lógica de diagnóstico.
+
+\subsection{Formatos Suportados}
+
+O sistema de playback aceita arquivos de log em formato CSV (\textit{Comma-Separated Values}) ou formato de log proprietário do simulador. Os arquivos devem conter colunas com timestamps e valores de sensores correspondentes aos parâmetros suportados pelo simulador.
+
+\subsection{Upload e Parsing}
+
+O processo de upload e interpretação dos dados segue os seguintes passos:
+
+\begin{enumerate}
+    \item \textbf{Seleção do arquivo:} O usuário seleciona um arquivo de log através da interface de upload.
+    \item \textbf{Parsing:} O sistema analisa o arquivo, identificando cabeçalhos, separadores e formato dos dados.
+    \item \textbf{Mapeamento:} Os campos do arquivo são mapeados para os parâmetros internos do simulador (RPM, velocidade, temperatura, etc.).
+    \item \textbf{Validação:} Os dados são validados quanto a faixas aceitáveis e consistência temporal.
+\end{enumerate}
+
+\subsection{Controles de Reprodução}
+
+A interface de playback oferece controles similares a um reprodutor de mídia:
+
+\begin{itemize}
+    \item \textbf{Play/Pause:} Iniciar ou pausar a reprodução dos dados.
+    \item \textbf{Velocidade:} Ajuste da velocidade de reprodução (0,5x, 1x, 2x, 4x).
+    \item \textbf{Barra de progresso:} Navegação temporal dentro do arquivo de log.
+    \item \textbf{Indicador de posição:} Exibição do timestamp atual e total.
+\end{itemize}
+
+\subsection{Sincronização}
+
+Durante a reprodução, os dados históricos substituem os valores gerados pelo motor de simulação, garantindo que:
+\begin{itemize}
+    \item Todos os gauges e indicadores da dashboard reflitam os dados do arquivo.
+    \item Comandos ELM327 enviados durante o playback retornem valores consistentes com os dados históricos.
+    \item A taxa de reprodução respeite os timestamps originais do arquivo.
+\end{itemize}
+
+% ============================================================
+\section{Gerenciamento de DTCs}
+\label{sec:dtcs}
+
+O sistema de gerenciamento de Códigos de Diagnóstico de Falha (DTCs) é um componente essencial do simulador, permitindo a simulação realista de condições de falha e diagnóstico.
+
+\subsection{Tipos de DTCs}
+
+O simulador gerencia três categorias de DTCs, conforme definido pelo padrão OBD-II:
+
+\begin{itemize}
+    \item \textbf{DTCs Armazenados (\textit{Stored}):} Códigos de falha confirmados que foram detectados em pelo menos dois ciclos de condução consecutivos. São recuperados pelo Mode 03 e ativam o indicador MIL (\textit{Malfunction Indicator Lamp}).
+    
+    \item \textbf{DTCs Pendentes (\textit{Pending}):} Códigos de falha detectados durante o ciclo de condução atual ou último, mas que ainda não foram confirmados. São recuperados pelo Mode 07 e representam falhas intermitentes ou recém-detectadas.
+    
+    \item \textbf{DTCs Permanentes (\textit{Permanent}):} Códigos que permanecem armazenados mesmo após um comando de limpeza (Mode 04). Só são removidos quando o sistema confirma que a falha foi resolvida ao longo de múltiplos ciclos de condução. São recuperados pelo Mode 0A.
+\end{itemize}
+
+\subsection{Codificação de DTCs}
+
+Os DTCs são codificados em dois bytes conforme o padrão SAE. O primeiro caractere indica o sistema:
+
+\begin{table}[H]
+\centering
+\caption{Codificação do tipo de DTC.}
+\label{tab:dtc-encoding}
+\begin{tabular}{@{}ccl@{}}
+\toprule
+\textbf{Prefixo} & \textbf{Bits (B7-B6)} & \textbf{Sistema} \\
+\midrule
+P & 00 & Trem de força (\textit{Powertrain}) \\
+C & 01 & Chassi (\textit{Chassis}) \\
+B & 10 & Carroceria (\textit{Body}) \\
+U & 11 & Rede (\textit{Network}) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+A codificação em bytes segue a fórmula implementada no simulador:
+
+\begin{lstlisting}[language=JavaScript, caption={Codificação de DTC em bytes.}, label={lst:dtc-encode}]
+private encodeDTC(code: string): [number, number] {
+  const typeMap = { P: 0, C: 1, B: 2, U: 3 };
+  const type = typeMap[code[0]] || 0;
+  const d1 = parseInt(code[1], 16);
+  const d2 = parseInt(code[2], 16);
+  const d3 = parseInt(code[3], 16);
+  const d4 = parseInt(code[4], 16);
+  const byte1 = (type << 6) | (d1 << 4) | d2;
+  const byte2 = (d3 << 4) | d4;
+  return [byte1, byte2];
+}
+\end{lstlisting}
+
+Por exemplo, o DTC \texttt{P0130} é codificado como:
+\begin{itemize}
+    \item Tipo P = 00, dígito 1 = 0, dígito 2 = 1 $\Rightarrow$ byte1 = \texttt{0x01}
+    \item Dígito 3 = 3, dígito 4 = 0 $\Rightarrow$ byte2 = \texttt{0x30}
+\end{itemize}
+
+\subsection{Indicador MIL (\textit{Malfunction Indicator Lamp})}
+
+O indicador MIL é automaticamente ativado quando há pelo menos um DTC armazenado e desativado quando todos os DTCs armazenados são limpos. O status do MIL é reportado no PID 01 do Mode 01 (bit A7 do primeiro byte de dados).
+
+\subsection{Operações de Limpeza e Reset}
+
+O comando Mode 04 executa as seguintes operações:
+\begin{enumerate}
+    \item Limpa todos os DTCs armazenados.
+    \item Limpa todos os DTCs pendentes.
+    \item Desativa o indicador MIL.
+    \item \textbf{Não} afeta DTCs permanentes (conforme especificação OBD-II).
+\end{enumerate}
+
+A interface do simulador também permite a adição e remoção manual de DTCs individuais em cada categoria, facilitando a criação de cenários de teste específicos.
+
+% ============================================================
+\section{Geração e Exportação de Logs}
+\label{sec:logs}
+
+O sistema de logging do simulador registra automaticamente dados de sensores e comandos durante toda a sessão de simulação, permitindo análise posterior e documentação de testes.
+
+\subsection{Registro de Sessão}
+
+O simulador mantém dois tipos de registros durante a operação:
+
+\begin{itemize}
+    \item \textbf{Log de Sensores:} Snapshots do estado completo de todos os sensores, registrados a cada 1 segundo durante a simulação. Cada entrada contém um timestamp relativo ao início da sessão e os valores de todos os 15 parâmetros monitorados. O buffer é limitado a 10.000 entradas ($\sim$2,8 horas de dados).
+    
+    \item \textbf{Log de Comandos:} Registro de todos os comandos ELM327 enviados e suas respectivas respostas, com timestamps precisos. Este log é atualizado em tempo real a cada interação com o terminal.
+\end{itemize}
+
+\subsection{Formato do Arquivo de Exportação}
+
+O arquivo de log exportado segue um formato estruturado com seções claramente delimitadas:
+
+\begin{lstlisting}[caption={Exemplo de arquivo de log exportado.}, label={lst:log-format}]
+# ECU SIMULATOR SESSION LOG
+# Vehicle: Generic Sedan 2.0L
+# VIN: 1HGBH41JXMN109186
+# Session Start: 2026-02-18T14:30:00.000Z
+# Session End: 2026-02-18T14:45:30.000Z
+# Duration: 15m 30s
+# Sensor Entries: 930
+# Command Entries: 47
+
+## COMMAND LOG
+timestamp_ms,command,response
+0,ATZ,ELM327 v1.5
+150,ATE0,OK
+300,ATSP0,OK
+1200,010C,41 0C 0B B8
+1500,010D,41 0D 00
+
+## SENSOR DATA
+timestamp_ms,rpm,speed,coolantTemp,engineLoad,...
+1000,752,0,90.1,20,12,35,4.1,10.2,...
+2000,748,0,90.1,21,13,34,3.9,10.1,...
+3000,755,0,90.2,19,12,36,4.2,10.3,...
+\end{lstlisting}
+
+O cabeçalho do arquivo inclui metadados da sessão: veículo selecionado, VIN, timestamps de início e fim, duração total, e contagem de entradas. As seções de dados utilizam formato CSV para facilitar importação em ferramentas de análise como Excel, MATLAB ou Python/Pandas.
+
+\subsection{Utilidade dos Logs}
+
+Os logs exportados servem a múltiplos propósitos:
+
+\begin{itemize}
+    \item \textbf{Análise de desempenho:} Revisão de padrões de comportamento dos sensores ao longo do tempo.
+    \item \textbf{Depuração:} Verificação de respostas a comandos específicos e identificação de anomalias.
+    \item \textbf{Documentação:} Registro formal de sessões de teste para relatórios e auditorias.
+    \item \textbf{Reprodução:} Os arquivos de log podem ser reimportados no componente de Playback para reprodução exata da sessão.
+    \item \textbf{Comparação:} Análise comparativa entre diferentes perfis de veículos ou cenários de simulação.
+\end{itemize}
+
+A exportação está disponível em dois pontos da interface:
+\begin{enumerate}
+    \item \textbf{Dashboard:} Botão ``EXPORT LOG'' que gera o arquivo completo com dados de sensores e comandos.
+    \item \textbf{Terminal:} Botão ``EXPORT'' que gera um arquivo contendo apenas o histórico de comandos e respostas.
+\end{enumerate}
+
+% ============================================================
+\section{Firmware Arduino para Simulação ECU}
+\label{sec:firmware-arduino}
+
+O firmware Arduino constitui a camada de hardware do simulador, permitindo que a simulação web interaja com ferramentas de diagnóstico OBD-II reais através do controlador CAN MCP2515. Esta seção detalha a estrutura do sketch, o protocolo de comunicação e a integração com o simulador web.
+
+\subsection{Visão Geral do Firmware}
+
+O firmware é implementado como um sketch Arduino (.ino) que executa três funções principais em seu loop:
+
+\begin{enumerate}
+    \item \textbf{Atualização de sensores:} A cada 200ms, os valores de todos os sensores simulados são recalculados com base no cenário de condução ativo.
+    \item \textbf{Processamento CAN:} Mensagens OBD-II recebidas via barramento CAN são interpretadas e respondidas com dados simulados.
+    \item \textbf{Processamento serial:} Comandos ELM327 recebidos via porta serial (do navegador web) são processados e respondidos no formato padrão ELM327.
+\end{enumerate}
+
+\subsection{Estrutura do Código}
+
+O sketch é organizado nas seguintes seções funcionais:
+
+\begin{lstlisting}[language=C++, caption={Estrutura principal do firmware Arduino.}, label={lst:arduino-structure}]
+#include <SPI.h>
+#include <mcp_can.h>
+
+#define CAN_CS_PIN   10   // Chip Select do MCP2515
+#define CAN_INT_PIN   2   // Pino de interrupcao
+
+MCP_CAN CAN(CAN_CS_PIN);
+
+// Estado dos sensores simulados
+struct SensorState {
+  float rpm, speed, coolantTemp, engineLoad;
+  float throttle, intakeMAP, mafRate;
+  float timingAdvance, intakeAirTemp;
+  float fuelLevel, ambientTemp, controlVoltage;
+  float oilTemp, baroPressure;
+  unsigned long runTime;
+};
+
+SensorState sensors;
+
+void setup() {
+  Serial.begin(115200);
+  CAN.begin(MCP_ANY, CAN_500KBPS, MCP_8MHZ);
+  CAN.setMode(MCP_NORMAL);
+  // Configurar filtros para OBD-II
+  CAN.init_Mask(0, 0, 0x7F0);
+  CAN.init_Filt(0, 0, 0x7E0);
+  CAN.init_Filt(1, 0, 0x7DF);
+  initSensors();
+}
+
+void loop() {
+  if (millis() - lastTick >= 200) {
+    updateSensors();  // Atualizar a cada 200ms
+    lastTick = millis();
+  }
+  processCAN();       // Verificar mensagens CAN
+  processSerialInput(); // Verificar comandos serial
+}
+\end{lstlisting}
+
+\subsection{Processamento de Requisições CAN}
+
+Quando uma mensagem CAN é recebida no endereço funcional \texttt{0x7DF} ou no endereço físico \texttt{0x7E0}, o firmware extrai o modo de serviço e o PID solicitado, processa a requisição e envia a resposta no endereço \texttt{0x7E8}.
+
+\begin{lstlisting}[language=C++, caption={Processamento de requisição CAN e resposta OBD-II.}, label={lst:arduino-can}]
+void processCAN() {
+  unsigned char len = 0, buf[8];
+  unsigned long canId;
+
+  if (CAN.checkReceive() != CAN_MSGAVAIL) return;
+  CAN.readMsgBuf(&len, buf);
+  canId = CAN.getCanId();
+
+  if (canId != 0x7DF && canId != 0x7E0) return;
+
+  uint8_t mode = buf[1];  // Modo de servico
+  uint8_t pid  = buf[2];  // PID solicitado
+
+  switch (mode) {
+    case 0x01: handleMode01(pid); break;
+    case 0x03: handleMode03();    break;
+    case 0x04: handleMode04();    break;
+    case 0x09: handleMode09(pid); break;
+  }
+}
+
+// Exemplo: resposta para RPM (PID 0x0C)
+void handleMode01_RPM() {
+  uint16_t raw = (uint16_t)(sensors.rpm * 4.0);
+  uint8_t resp[4] = {0x41, 0x0C,
+    (uint8_t)((raw >> 8) & 0xFF),
+    (uint8_t)(raw & 0xFF)};
+  sendOBDResponse(resp, 4);
+}
+
+void sendOBDResponse(uint8_t* data, uint8_t len) {
+  uint8_t txBuf[8] = {len, 0,0,0,0, 0x55,0x55,0x55};
+  for (uint8_t i = 0; i < len && i < 7; i++)
+    txBuf[i+1] = data[i];
+  CAN.sendMsgBuf(0x7E8, 0, 8, txBuf);
+}
+\end{lstlisting}
+
+O fluxo completo de uma requisição OBD-II é ilustrado na sequência:
+
+\begin{enumerate}
+    \item Scanner envia requisição CAN: \texttt{7DF [02 01 0C 55 55 55 55 55]}
+    \item Arduino/MCP2515 recebe a mensagem via interrupção ou polling
+    \item Firmware extrai modo (\texttt{0x01}) e PID (\texttt{0x0C} = RPM)
+    \item Firmware calcula valor: $\text{raw} = \text{RPM} \times 4 = 750 \times 4 = 3000$
+    \item Firmware envia resposta CAN: \texttt{7E8 [04 41 0C 0B B8 55 55 55]}
+    \item Scanner decodifica: $\text{RPM} = (0\text{x}0B \times 256 + 0\text{x}B8) / 4 = 750$
+\end{enumerate}
+
+\subsection{Comunicação Serial com o Simulador Web}
+
+O firmware também aceita comandos ELM327 via porta serial, permitindo que o simulador web envie comandos e receba respostas como se estivesse comunicando com um ELM327 real. O protocolo serial segue o formato padrão:
+
+\begin{itemize}
+    \item \textbf{Entrada:} Comandos terminados com \texttt{\textbackslash r} (retorno de carro)
+    \item \textbf{Saída:} Respostas seguidas de \texttt{\textbackslash r\textbackslash n>} (prompt ELM327)
+\end{itemize}
+
+\begin{lstlisting}[language=C++, caption={Processamento de comandos serial ELM327.}, label={lst:arduino-serial}]
+void processSerialInput() {
+  while (Serial.available() > 0) {
+    char c = Serial.read();
+    if (c == '\r' || c == '\n') {
+      if (serialBufIdx > 0) {
+        serialBuffer[serialBufIdx] = '\0';
+        processSerialCommand(serialBuffer);
+        serialBufIdx = 0;
+      }
+      continue;
+    }
+    if (serialBufIdx < SERIAL_BUF_SIZE - 1)
+      serialBuffer[serialBufIdx++] = c;
+  }
+}
+
+void processSerialCommand(const char* cmd) {
+  // Comandos AT: ATZ, ATE0, ATSP6, etc.
+  if (cmd[0]=='A' && cmd[1]=='T') {
+    processATCommand(cmd + 2);
+    return;
+  }
+  // Comandos OBD-II: 010C, 010D, 0300, etc.
+  processOBDSerialCommand(cmd);
+}
+\end{lstlisting}
+
+O firmware implementa comandos AT personalizados para controle de cenário via serial:
+
+\begin{table}[H]
+\centering
+\caption{Comandos AT estendidos para controle de cenário.}
+\label{tab:at-cenario}
+\begin{tabular}{@{}lll@{}}
+\toprule
+\textbf{Comando} & \textbf{Cenário} & \textbf{Resposta} \\
+\midrule
+\texttt{ATSC0} & Marcha lenta (\textit{idle}) & \texttt{SCENARIO: IDLE} \\
+\texttt{ATSC1} & Aceleração & \texttt{SCENARIO: ACCEL} \\
+\texttt{ATSC2} & Cruzeiro & \texttt{SCENARIO: CRUISE} \\
+\texttt{ATSC3} & Desaceleração & \texttt{SCENARIO: DECEL} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Integração com a Web Serial API}
+
+A comunicação entre o navegador e o Arduino é estabelecida através da Web Serial API. O fluxo de integração é:
+
+\begin{enumerate}
+    \item O usuário clica no botão ``SERIAL'' na interface do simulador web.
+    \item O navegador solicita permissão para acessar a porta serial via \texttt{navigator.serial.requestPort()}.
+    \item A conexão é aberta com baud rate de 115200 bps.
+    \item O simulador web envia comandos ELM327 via \texttt{TextEncoderStream}.
+    \item O Arduino processa os comandos e responde via \texttt{Serial.println()}.
+    \item O navegador recebe as respostas via \texttt{TextDecoderStream}.
+    \item As respostas são exibidas no terminal e os dados atualizam a dashboard.
+\end{enumerate}
+
+Quando o Arduino está conectado, o simulador web opera em modo \textit{bridge}: os comandos do terminal são enviados ao Arduino via serial, e as respostas do Arduino são exibidas na interface. Quando desconectado, o motor de simulação local do navegador processa os comandos internamente.
+
+\subsection{Disponibilização do Firmware}
+
+O arquivo do firmware Arduino (\texttt{arduino\_ecu\_simulator.ino}) está disponível para download diretamente na interface do simulador web, através do botão ``CÓDIGO ARDUINO'' na barra de controle do dashboard. O arquivo inclui:
+
+\begin{itemize}
+    \item Código completo e funcional, pronto para upload no Arduino IDE.
+    \item Comentários detalhados em português explicando cada seção.
+    \item Suporte a todos os PIDs e modos diagnósticos implementados no simulador web.
+    \item Instruções de pinagem e bibliotecas necessárias no cabeçalho do arquivo.
+\end{itemize}
+
+Para utilizar o firmware, o usuário deve:
+\begin{enumerate}
+    \item Instalar a biblioteca \texttt{mcp\_can} via Arduino IDE Library Manager.
+    \item Conectar o módulo MCP2515 ao Arduino conforme a Tabela~\ref{tab:pinagem-spi}.
+    \item Fazer upload do sketch para o Arduino.
+    \item Conectar o Arduino ao computador via USB.
+    \item Clicar em ``SERIAL'' no simulador web para estabelecer a conexão.
+\end{enumerate}
+
+% ============================================================
+\section{Desafios Técnicos e Melhorias Futuras}
+\label{sec:desafios}
+
+O desenvolvimento do simulador ECU Web-Based apresenta desafios técnicos distintos e oportunidades de aprimoramento futuro.
+
+\subsection{Desafios de Tempo Real}
+
+A simulação em tempo real de uma ECU automotiva dentro de um navegador web impõe restrições significativas:
+
+\begin{itemize}
+    \item \textbf{Precisão temporal:} O JavaScript no navegador não garante precisão de temporização abaixo de milissegundos devido ao \textit{event loop} e \textit{garbage collection}. O intervalo de tick de 200ms foi escolhido como compromisso entre responsividade e estabilidade.
+    \item \textbf{Limitações de processamento:} Operações pesadas de cálculo podem causar \textit{jank} na interface. A otimização com \texttt{requestAnimationFrame} e atualizações seletivas de estado minimizam este impacto.
+    \item \textbf{Latência serial:} A comunicação via Web Serial API introduz latência variável que deve ser gerenciada para manter a responsividade do sistema.
+\end{itemize}
+
+\subsection{Sincronização de Dados}
+
+Manter o estado consistente entre o motor de simulação, a interface do usuário e a conexão serial apresenta desafios:
+
+\begin{itemize}
+    \item Atualizações de sensores a 5 Hz devem ser refletidas simultaneamente em gauges, gráficos e respostas a comandos.
+    \item Mudanças de perfil de veículo devem resetar todos os estados de forma atômica.
+    \item O playback de dados históricos deve substituir completamente os dados gerados sem inconsistências.
+\end{itemize}
+
+\subsection{Escalabilidade}
+
+O sistema atual suporta três perfis de veículos com 15 sensores cada. A escalabilidade para cenários mais complexos requer:
+
+\begin{itemize}
+    \item Suporte a PIDs não-padrão específicos de fabricantes.
+    \item Modelagem de subsistemas adicionais (transmissão, ABS, airbag).
+    \item Simulação de múltiplas ECUs em um único barramento CAN.
+\end{itemize}
+
+\subsection{Melhorias Futuras}
+
+Diversas melhorias podem expandir significativamente as capacidades do simulador:
+
+\begin{itemize}
+    \item \textbf{Integração de IA:} Incorporação de algoritmos de inteligência artificial para modelagem preditiva de comportamento, simulando como uma ECU reagiria a circunstâncias imprevistas ou modelando comportamento do motorista e seu impacto nos sistemas do veículo.
+    
+    \item \textbf{Suporte Multi-usuário:} Implementação de funcionalidades para múltiplos usuários interagirem simultaneamente com o simulador, facilitando testes colaborativos, diagnósticos remotos ou aplicações educacionais.
+    
+    \item \textbf{Expansão do Banco de Modelos:} Expansão contínua da biblioteca de modelos de veículos suportados, incluindo veículos elétricos (EVs) com parâmetros específicos como estado de carga da bateria (SoC), temperatura do pack de baterias e potência do motor elétrico.
+    
+    \item \textbf{Cenários Avançados de Falha:} Desenvolvimento de cenários de simulação mais sofisticados, como falhas intermitentes de sensores, leituras fora de faixa, degradação de componentes ao longo do tempo e ciclos de condução específicos.
+    
+    \item \textbf{Diagnóstico Guiado:} Implementação de fluxos de troubleshooting guiados, ferramentas de análise detalhada de dados e detecção automática de falhas.
+    
+    \item \textbf{Protocolo UDS:} Suporte ao protocolo \textit{Unified Diagnostic Services} (ISO 14229) para diagnósticos mais avançados além do OBD-II padrão.
+\end{itemize}
+
+% ============================================================
+\section{Conclusão}
+\label{sec:conclusao}
+
+O simulador ECU Web-Based apresentado neste capítulo representa uma solução abrangente e acessível para emulação de unidades de controle eletrônico automotivas. Através da implementação completa do protocolo ELM327, suporte a múltiplos modos de diagnóstico OBD-II e geração dinâmica de dados realistas, o sistema oferece uma plataforma robusta para desenvolvimento, testes e educação na área automotiva.
+
+As principais contribuições deste trabalho incluem:
+
+\begin{enumerate}
+    \item \textbf{Operação Standalone:} A capacidade de funcionar completamente sem hardware externo, executando toda a simulação no navegador web, democratiza o acesso a ferramentas de simulação ECU que tradicionalmente requerem investimentos significativos em hardware.
+    
+    \item \textbf{Simulação Multi-Modelo:} O sistema de perfis de veículos permite a emulação de diferentes tipos de veículos com parâmetros realistas e interdependentes, proporcionando cenários de teste diversificados.
+    
+    \item \textbf{Integração Hardware Opcional:} A ponte entre simulação virtual e hardware físico via Web Serial API e MCP2515 permite validação com ferramentas de diagnóstico reais quando necessário.
+    
+    \item \textbf{Geração e Exportação de Logs:} O sistema de logging abrangente facilita análise posterior, documentação de testes e reprodução de sessões.
+    
+    \item \textbf{Interface Profissional:} A interface de usuário com estética de engenharia, gauges de telemetria e terminal de comandos proporciona uma experiência imersiva e funcional.
+\end{enumerate}
+
+O simulador demonstra que tecnologias web modernas (TypeScript, React, Web Serial API) são capazes de suportar aplicações de simulação automotiva complexas com desempenho adequado para uso profissional e educacional. As melhorias futuras propostas --- incluindo integração de IA, suporte multi-usuário e expansão para veículos elétricos --- indicam um caminho claro para evolução contínua da plataforma.
+
+% ============================================================
+% Referências Bibliográficas
+% ============================================================
+\begin{thebibliography}{99}
+
+\bibitem{sae_j1979}
+SAE International, ``SAE J1979 -- E/E Diagnostic Test Modes,'' SAE Standard, 2014.
+
+\bibitem{elm327_datasheet}
+ELM Electronics, ``ELM327 -- OBD to RS232 Interpreter,'' ELM327 Datasheet, Version 2.2, 2017.
+
+\bibitem{bosch_can}
+Robert Bosch GmbH, ``CAN Specification Version 2.0,'' Bosch, Stuttgart, Germany, 1991.
+
+\bibitem{mcp2515_datasheet}
+Microchip Technology Inc., ``MCP2515 -- Stand-Alone CAN Controller with SPI Interface,'' Datasheet DS20001801H, 2019.
+
+\bibitem{web_serial_api}
+W3C, ``Web Serial API,'' W3C Draft Community Group Report, 2023. Disponível em: \url{https://developer.chrome.com/docs/capabilities/serial}.
+
+\bibitem{iso15765}
+International Organization for Standardization, ``ISO 15765-4:2016 -- Road vehicles -- Diagnostic communication over Controller Area Network (DoCAN),'' ISO Standard, 2016.
+
+\bibitem{obd2_wikipedia}
+Wikipedia, ``OBD-II PIDs,'' Disponível em: \url{https://en.wikipedia.org/wiki/OBD-II_PIDs}.
+
+\bibitem{arduino_can}
+PCBSync, ``Arduino CAN Bus: MCP2515 Vehicle Network Tutorial,'' 2024. Disponível em: \url{https://pcbsync.com/arduino-can-bus/}.
+
+\bibitem{longan_can}
+Longan Labs, ``CAN BUS SHIELD Documentation,'' 2024. Disponível em: \url{https://docs.longan-labs.cc/1030016/}.
+
+\bibitem{mdn_serial}
+Mozilla Developer Network, ``SerialPort -- Web APIs,'' MDN Web Docs, 2024. Disponível em: \url{https://developer.mozilla.org/en-US/docs/Web/API/SerialPort}.
+
+\bibitem{arduino_serial}
+Arduino, ``Serial Communication -- Arduino Reference,'' 2024. Disponível em: \url{https://www.arduino.cc/reference/en/language/functions/communication/serial/}.
+
+\end{thebibliography}

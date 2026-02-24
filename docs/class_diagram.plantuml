@@ -1,0 +1,196 @@
+@startuml class_diagram
+!theme plain
+skinparam backgroundColor #FEFEFE
+
+title Diagrama de Classes — Simulador ECU
+
+interface ISensorState {
+  +rpm: number
+  +speed: number
+  +coolantTemp: number
+  +engineLoad: number
+  +throttle: number
+  +intakeMAP: number
+  +mafRate: number
+  +timingAdvance: number
+  +intakeAirTemp: number
+  +fuelLevel: number
+  +ambientTemp: number
+  +controlVoltage: number
+  +oilTemp: number
+  +baroPressure: number
+  +runTime: number
+  +[key: string]: number
+}
+
+interface IVehicleProfile {
+  +id: string
+  +name: string
+  +type: 'sedan' | 'suv' | 'sport' | 'dbc'
+  +vin: string
+  +calibrationId: string
+  +supportedPids: Record<string, number[]>
+  +pidRanges: Record<string, {min, max, idle}>
+  +dtcs: {stored, pending, permanent}
+  +description: string
+}
+
+interface ISimulatorConfig {
+  +echoEnabled: boolean
+  +headersEnabled: boolean
+  +spacesEnabled: boolean
+  +linefeedsEnabled: boolean
+  +protocol: string
+  +milOn: boolean
+}
+
+enum SimScenario {
+  idle
+  acceleration
+  cruise
+  deceleration
+}
+
+enum SensorMode {
+  auto
+  manual
+}
+
+class SensorModeState {
+  +mode: SensorMode
+  +manualValue: number
+}
+
+class ECUSimulator {
+  -profile: VehicleProfile
+  -config: SimulatorConfig
+  -sensors: SensorState
+  -running: boolean
+  -scenario: SimScenario
+  -sensorModes: Record<string, SensorModeState>
+  -customProfiles: VehicleProfile[]
+  -sensorLog: Array<{timestamp, state}>
+  -commandLog: Array<{timestamp, command, response}>
+  -listeners: Array<(state) => void>
+  --
+  +constructor(profileId: string)
+  +start(): void
+  +stop(): void
+  +tick(): void
+  +getState(): SensorState
+  +setScenario(scenario: SimScenario): void
+  +switchProfile(profileId: string): void
+  +setSensorValue(key: string, value: number): void
+  +setSensorMode(key: string, mode: SensorMode): void
+  +setManualValue(key: string, value: number): void
+  +getManualSensors(): string[]
+  +setAllSensorsMode(mode: SensorMode): void
+  +addDBCProfile(profile: VehicleProfile): void
+  +getAllProfiles(): VehicleProfile[]
+  +processCommand(rawCmd: string): string
+  +sendCommand(rawCmd: string): string
+  +exportSessionLog(): string
+  +onStateChange(listener): () => void
+  +onLog(listener): () => void
+  -processATCommand(cmd: string): string
+  -processOBDCommand(cmd: string): string
+  -handleMode01(pidHex: string): string
+  -handleMode03(): string
+  -handleMode04(): string
+  -handleMode07(): string
+  -handleMode09(pidHex: string): string
+  -handleMode0A(): string
+  -formatResponse(mode, pid, dataBytes): string
+  -encodeDTC(code: string): [number, number]
+  -approach(current, target, tau, noise): number
+  -isManual(key: string): boolean
+  -val(key: string): number
+}
+
+class SerialConnection {
+  -port: SerialPort | null
+  -reader: ReadableStreamDefaultReader | null
+  -writer: WritableStreamDefaultWriter | null
+  -status: ConnectionStatus
+  -options: SerialConnectionOptions
+  --
+  +{static} isSupported(): boolean
+  +connect(): Promise<boolean>
+  +write(data: string): Promise<boolean>
+  +disconnect(): Promise<void>
+  +getStatus(): ConnectionStatus
+  -startReading(): void
+  -setStatus(status: ConnectionStatus): void
+}
+
+enum ConnectionStatus {
+  disconnected
+  connecting
+  connected
+  error
+}
+
+class DBCParser {
+  +{static} parseDBC(content, filename): DBCFile
+  +{static} encodeSignalValue(signal, value): number
+  +{static} decodeSignalValue(signal, rawValue): number
+  +{static} packSignalIntoData(data, signal, raw): void
+  +{static} buildCANFrame(message, values): Uint8Array
+  +{static} dbcToSensorConfig(dbc): SensorConfig
+}
+
+class DBCFile {
+  +version: string
+  +messages: DBCMessage[]
+  +nodes: string[]
+  +comments: Record<string, string>
+  +filename: string
+}
+
+class DBCMessage {
+  +id: number
+  +name: string
+  +size: number
+  +sender: string
+  +signals: DBCSignal[]
+  +comment?: string
+}
+
+class DBCSignal {
+  +name: string
+  +startBit: number
+  +bitSize: number
+  +byteOrder: 'little_endian' | 'big_endian'
+  +valueType: 'unsigned' | 'signed'
+  +factor: number
+  +offset: number
+  +min: number
+  +max: number
+  +unit: string
+  +receivers: string[]
+}
+
+class MLCorrelationModel <<JSON>> {
+  +sensor_ranges: Record<string, Range>
+  +correlation_matrix: Record<string, Record<string, number>>
+  +regression_models: Record<string, RegressionModel>
+  +scenario_statistics: Record<string, Stats>
+  +physical_rules: PhysicalRules
+  +noise_profiles: Record<string, NoiseProfile>
+  +transition_time_constants: TimeConstants
+}
+
+' Relationships
+ECUSimulator *-- ISensorState : sensors
+ECUSimulator *-- IVehicleProfile : profile
+ECUSimulator *-- ISimulatorConfig : config
+ECUSimulator *-- SensorModeState : sensorModes
+ECUSimulator o-- SimScenario : scenario
+ECUSimulator ..> DBCParser : usa para DBC
+ECUSimulator ..> MLCorrelationModel : parâmetros do tick()
+SerialConnection ..> ECUSimulator : bridge serial
+DBCParser --> DBCFile : produz
+DBCFile *-- DBCMessage
+DBCMessage *-- DBCSignal
+
+@enduml

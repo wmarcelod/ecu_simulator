@@ -1,0 +1,91 @@
+@startuml ui_navigation
+!theme plain
+skinparam backgroundColor #FEFEFE
+
+title Navegação da Interface — Simulador ECU
+
+state "🏠 Dashboard (Tab Principal)" as Dashboard {
+  state "Controles do Motor" as Controls
+  state "Gauges (RPM, Speed, Temp)" as Gauges
+  state "Indicadores (MIL, Status)" as Indicators
+  state "Seleção de Perfil" as Profile
+  state "Seleção de Cenário" as Scenario
+  state "Conexão Arduino" as Connect
+  state "Load DBC" as LoadDBC
+  state "Toggle Tema ☀️/🌙" as Theme
+  
+  [*] --> Controls
+  Controls --> Gauges
+  Controls --> Profile
+  Controls --> Scenario
+  Controls --> Connect
+  Controls --> LoadDBC
+  Controls --> Theme
+}
+
+state "📊 Sensors (Tab)" as Sensors {
+  state "Independent Sensor Controls" as SensorCtrl
+  state "AUTO/MANUAL Toggle" as ModeToggle
+  state "Sliders (min-max)" as Sliders
+  state "Gráficos em Tempo Real" as Charts
+  state "Escala Manual/Auto" as Scale
+  
+  [*] --> SensorCtrl
+  SensorCtrl --> ModeToggle
+  SensorCtrl --> Sliders
+  SensorCtrl --> Charts
+  Charts --> Scale
+}
+
+state "💻 Terminal (Tab)" as Terminal {
+  state "Linha de Comando ELM327" as CmdLine
+  state "Histórico de Comandos" as History
+  state "Respostas OBD-II" as Responses
+  
+  [*] --> CmdLine
+  CmdLine --> History
+  CmdLine --> Responses
+}
+
+state "⚠️ DTCs (Tab)" as DTCs {
+  state "DTCs Armazenados" as Stored
+  state "DTCs Pendentes" as Pending
+  state "Adicionar/Remover DTC" as ManageDTC
+  state "Limpar Todos" as ClearDTC
+  
+  [*] --> Stored
+  Stored --> Pending
+  Stored --> ManageDTC
+  ManageDTC --> ClearDTC
+}
+
+state "📼 Playback (Tab)" as Playback {
+  state "Log de Sessão" as SessionLog
+  state "Exportar CSV" as Export
+  
+  [*] --> SessionLog
+  SessionLog --> Export
+}
+
+state "🔧 Schematic (Tab)" as Schematic {
+  state "Diagrama SVG Arduino↔MCP2515" as Diagram
+  state "Tabela de Pinagem" as Pinout
+  state "Notas Técnicas" as Notes
+  
+  [*] --> Diagram
+  Diagram --> Pinout
+  Pinout --> Notes
+}
+
+Dashboard --> Sensors : Tab
+Dashboard --> Terminal : Tab
+Dashboard --> DTCs : Tab
+Dashboard --> Playback : Tab
+Dashboard --> Schematic : Tab
+Sensors --> Dashboard : Tab
+Terminal --> Dashboard : Tab
+DTCs --> Dashboard : Tab
+Playback --> Dashboard : Tab
+Schematic --> Dashboard : Tab
+
+@enduml

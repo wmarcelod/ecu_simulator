@@ -1,0 +1,1048 @@
+
+
+
+
+
+
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>
+      Automotive OBD-II Dataset
+    </title>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <meta name="_csrf" content="0e62e9a1-7ead-417f-9bfa-92259d8a0e4d"/>
+  <meta name="_csrf_header" content="X-CSRF-TOKEN"/>
+
+  <script type="text/javascript" src="/radar/assets/vendor/jquery-3.7.1/jquery-3.7.1.min-152acf7c50f05e47e674337e1a6b2e35.js" ></script>
+  <script type="text/javascript" src="/radar/assets/vendor/tss-4.8.4/terminology-service-suite.min-764f147adffed5b559ac4bded60d0d58.js" ></script>
+  <link rel="stylesheet" href="/radar/assets/vendor/tss-4.8.4/terminology-service-suite.min-ca384507a7fdfa55290b872ef67b71c3.css" />
+  <script type="text/javascript" src="/radar/assets/application-ad1422f74f4e2aba8365a1e6b45e4162.js" ></script>
+  <script type="text/javascript" src="/radar/assets/radarUtilities-f736f622515faed1f512e41964298b25.js" ></script>
+  <script type="text/javascript" src="/radar/assets/ui/radarForm-906ab21ccac26403cef449857e1e8648.js" ></script>
+  <link rel="stylesheet" href="/radar/assets/application-2df421eefc80e4e3979ca06829fb2ab9.css" />
+  <link rel="stylesheet" href="/radar/assets/ui/radarForm-4ce2d9530b79fe297e1df90d8ea25331.css" />
+  <script type="text/javascript" src="/radar/assets/header-7616e8e945a3aad1be3e1e2196265baa.js" ></script>
+
+  <link rel="shortcut icon" href="/radar/image/gcEhEYEUVuIvzEGv/favicon.ico" type="image/x-icon" />
+  
+    <meta name="layout" content="main"/>
+    
+    <link rel="stylesheet" href="/radar/assets/dataset-6083dcd835af24b621b9883e524f55c6.css" />
+    <script type="text/javascript" src="/radar/assets/dataset-0574237b4b79ddf7102f4b047b831b3b.js" ></script>
+    <script type="text/javascript" src="/radar/assets/utils/keywordMetadata-9efe20829734d62d059b6b45c635cd71.js" ></script>
+    <script type="text/javascript" src="/radar/assets/services/folder-ad4820fddfca45c18ba96387f7c947ee.js" ></script>
+    <script type="text/javascript" src="/radar/assets/statistics-8b8297928b2cde20c0d66c06ee153e19.js" ></script>
+    <script type="text/javascript" src="/radar/assets/services/openstreetmap-7c9ab6e186b1d87593c695a051904e5a.js" ></script>
+    <link rel="stylesheet" href="/radar/assets/openstreetmap-570371b327c75e7e8d32ea95ac7d5134.css" />
+  
+  <meta name="BRANDING_COLOR" content="#009682">
+</head>
+<body class="clearfix">
+
+
+
+
+
+<nav class="navbar">
+    <div tabindex="0" class="skip-nav">Skip to main content</div>
+
+    
+    
+    
+
+    <div class="cookie-notice visible" id="cookie-notice">
+        <div class="container-fluid bb">
+            <div class="row">
+                <div class="col-lg-offset-1 col-md-12 col-lg-10">
+                    <p>
+                        This website only uses technically necessary cookies. They will be deleted at the latest when you close your browser. To learn more, please read our <a href="https://www.kit.edu/privacypolicy.php">Privacy Policy</a>.
+                    </p>
+                    
+                    <a id="cookie-notice-close" class="icon icon-x close" aria-controls="cookie-notice" aria-label="Close cookie notification." href="#"></a>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="main-header">
+        <div class="main-header-vcenter">
+            <a class="main-header-icon" href="#" id="icon-contrast" title="Switch to high contrast mode" style="display:none">
+                <span class="icon-contrast"></span>
+            </a>
+            <div class="language-selection">
+                <a href="/radar/dataset/index" class="language " data-lang="de" title="German language">DE</a>
+                <a href="/radar/dataset/index" class="language selected" data-lang="en" title="English language">EN</a>
+            </div>
+            <div>
+                <button id="open-search" class="main-header-icon icon-magnifier" type="button" tabindex="0" data-toggle="collapse" data-target="#collapse-search" aria-expanded="false" aria-label="Search open / close"></button>
+            </div>
+            <div class="main-header-button-area">
+                
+                    
+
+                    <a href="/radar/en/login" class="main-header-button login-button" tabindex="0">
+                        Login
+                        <span class="icon-login"></span>
+                    </a>
+                
+                
+            </div>
+        </div>
+    </div>
+    <div class="main-header-between">
+        <div class="main-header-logo">
+            
+                <a href="https://radar.kit.edu" class="institution-logo-container">
+                    <img class="" src="/radar/image/gcEhEYEUVuIvzEGv/contract-logo" alt="Logo, to home"></img>
+                </a>
+            
+        </div>
+        
+    </div>
+    
+
+    
+    <div id="collapse-search" class="row header-search collapse ">
+        <form action="/radar/en/search" method="get" role="search" >
+            <div class="search-container">
+                <div class="search-elements">
+                    <label for="search-input" class="search-label">Search</label>
+                    <input id="search-input" type="text" name="query" class="nav-search form-control skip-destination" placeholder="Enter search term">
+                    <button type="submit" class="icon-magnify" aria-label="Search"></button>
+                </div>
+            </div>
+        </form>
+    </div>
+</nav>
+
+<!-- BEGIN - Action Bar -->
+<!-- TO BE MOVED IN A TEMPLATE WITH PARAMETERS (breadcrumbs, actions) !-->
+
+  
+
+
+
+
+  <div id="action-bar" class="navbar navbar-static-top bb ">
+    <div class="container-fluid">
+      <div class="row">
+        <div class="col-lg-offset-1 col-sm-12 col-md-12 col-lg-10">
+          <div class="breadcrumbs-container">
+            <ol class='breadcrumb' data-current-entity-id='bCtGxdTklQlfQcAq' data-parent-entity-id='tjOrVpeaIDIgfooX' data-current-contentmodel='dataset'><li>You are here: </li><li class="pre" data-entity-id="bCtGxdTklQlfQcAq"><a href="/radar/en/dataset/bCtGxdTklQlfQcAq" title="Automotive OBD-II Dataset">Automotive OBD-II Dataset</a></li></ol>
+            <div class="hidden-breadcrumbs-container">
+              <a id="dropdown-hidden-breadcrumbs" class="dropdown-toggle hide" data-toggle="dropdown" aria-expanded="true">...</a>
+              <ul class="hidden-breadcrumbs dropdown-menu" aria-labelledby="dropdown-hidden-breadcrumbs"></ul>
+            </div>
+            
+              <div class="actionbar-title">
+                <h1 class="pre-wrap">Dataset: Automotive OBD-II Dataset</h1>
+              </div>
+            
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+
+<!-- End - Action Bar -->
+
+<!-- Content -->
+
+<div class="container-fluid" tabindex="0">
+  <div class="row">
+    
+      <div class="col-md-12 col-lg-10 col-lg-offset-1 content-wrapper">
+        
+
+
+
+
+
+        
+    <input type="hidden" id="keywordApi" name="keywordApi" value="https://api.terminology.tib.eu/api"/>
+    <input type="hidden" id="keywordUi" name="keywordApi" value="https://terminology.tib.eu/ts/ontologies/"/>
+
+  <div class="spinner-folder hidden"></div>
+
+    <div class="row">
+      <!-- First Column -->
+      <div class="col-md-8 col-lg-8 block">
+        <div class="col-xs-12 files-list">
+          <div class="table-responsive">
+            <ul id="dataset-tabs" class="nav nav-tabs nav-justified mb-m">
+              <li data-tab="metadata"><a href="#">RADAR Metadata</a> </li>
+              
+              <li data-tab="content"><a href="#">Content</a></li>
+              
+                <li id="dataset-tab-statistics" data-tab="statistics" data-entity-status="PUBLISHED"><a href="#">Statistics</a></li>
+              
+              <li data-tab="technical"><a href="#">Technical Metadata</a></li>
+            </ul>
+            <!-- METADATA -->
+            <div id="metadata" class="tab-content">
+              
+
+
+
+
+
+
+
+<div class="container-fluid ">
+
+
+
+
+
+
+
+
+  <!-- DOI -->
+  
+
+  <!-- alternateIdentifier -->
+  <div class="row bb vertical-align md-field md-alternateIdentifiers">
+    
+        <div class="col-md-3 col-lg-3">
+          Alternate identifier:
+        </div>
+        <div class="col-md-9 col-lg-9 ">
+          
+            (KITopen-DOI) 10.5445/IR/1000085073<br>
+          
+        </div>
+    
+  </div>
+
+  <!-- relatedIdentifier check when fields are blank-->
+  <div class="row bb vertical-align md-field md-relatedIdentifiers">
+    
+      <div class="col-md-3 col-lg-3">
+        Related identifier:
+      </div>
+      <div class="col-md-9 col-lg-9 ">
+        <span class="no-content">-</span>
+      </div>
+    
+  </div>
+
+  <!-- creators -->
+  <div class="row bb vertical-align md-field md-creators">
+    <div class="col-md-3 col-lg-3">
+      Creator/Author:
+    </div>
+    <div class="col-md-9 col-lg-9">
+      
+        
+          
+          <div><span property='name'>Weber, Marc</span> [Weber, Marc]</div>
+        
+      
+    </div>
+  </div>
+
+  <!-- contributors -->
+  <div class="row bb vertical-align md-field md-contributors">
+    <div class="col-md-3 col-lg-3">
+      Contributors:
+    </div>
+    
+      <div class="col-md-9 col-lg-9 ">
+        <span class="no-content">-</span>
+      </div>
+    
+  </div>
+
+  <!-- titles -->
+  <div class="row bb vertical-align md-field md-title">
+    <div class="col-md-3 col-lg-3">
+      Title:
+    </div>
+    <div class="pre-wrap col-md-9 col-lg-9 ">Automotive OBD-II Dataset</div>
+  </div>
+
+
+  <!-- additionalTitles -->
+  <div class="row bb vertical-align md-field md-additionalTitles">
+    <div class="col-md-3 col-lg-3">
+      Additional titles:
+    </div>
+    
+      <div class="col-md-9 col-lg-9 ">
+        <span class="no-content">-</span>
+      </div>
+    
+  </div>
+
+  <!-- description -->
+  <div class="row bb vertical-align md-field md-descriptions">
+    <div class="col-md-3 col-lg-3">
+      Description:
+    </div>
+    
+      <div class="col-md-9 col-lg-9">
+        
+          <div class="description-content" id="description-0">
+            (Technical Remarks)
+
+            
+              <span class="text-content" id="text-0">
+                <span class="visible-text-description" id="visible-text-0">
+                  CSV data containing ten vehicle signals logged via the OBD-II interface: Engine coolant temperature, intake manifold absolute pressure, engine RPM, vehicle speed sensor, intake air temperature, air flow rate from mass flow sensor, absolute throttle position, ambient air temperature as well as the ac...
+                </span>
+                <span class="full-text-description" id="full-text-0" style="display: none;">
+                  CSV data containing ten vehicle signals logged via the OBD-II interface: Engine coolant temperature, intake manifold absolute pressure, engine RPM, vehicle speed sensor, intake air temperature, air flow rate from mass flow sensor, absolute throttle position, ambient air temperature as well as the accelerator pedal positions D and E.
+The data was recorded with the OBD-II dongle KIWI 3 from PLX Devices in combination with the smartphone application OBD Auto Doctor from Creosys on an iOS device.
+The file name is assembled according to the following scheme: &lt;yyyy-mm-dd&gt;_&lt;brand&gt;_&lt;model&gt;_&lt;from&gt;_&lt;to&gt;_&lt;condition&gt;_&lt;extension&gt;.csv
+- &lt;from&gt; and &lt;to&gt; represent start and end position of the log according to the German number plates, i.e. KA = Karlsruhe etc.
+- &lt;condition&gt; is a label indicating the principle road conditions (e.g. normal, frei/free, Stau/busy)
+- &lt;extension&gt; is optional and marks special situations occurring in the vehicle speed data
+                </span>
+                <span class="markdown-text-description" id="markdown-text-0" style="display: none;">
+                  <p>CSV data containing ten vehicle signals logged via the OBD-II interface: Engine coolant temperature, intake manifold absolute pressure, engine RPM, vehicle speed sensor, intake air temperature, air flow rate from mass flow sensor, absolute throttle position, ambient air temperature as well as the accelerator pedal positions D and E.<br>
+The data was recorded with the OBD-II dongle KIWI 3 from PLX Devices in combination with the smartphone application OBD Auto Doctor from Creosys on an iOS device.<br>
+The file name is assembled according to the following scheme: <yyyy-mm-dd><em><brand></em><model><em><from></em><to><em><condition></em><extension>.csv</p>
+<ul>
+<li><from> and <to> represent start and end position of the log according to the German number plates, i.e. KA = Karlsruhe etc.</li>
+<li><condition> is a label indicating the principle road conditions (e.g. normal, frei/free, Stau/busy)</li>
+<li><extension> is optional and marks special situations occurring in the vehicle speed data</li>
+</ul>
+
+                </span>
+              </span>
+            
+
+            
+          </div>
+          <div class="show-buttons">
+            
+              <span class="icon icon-caret-down"><a href="#" class="toggle-link-showall" id="toggle-link-0" class="icon icon-caret-down">
+                Show more
+              </a></span>
+
+              
+                <a href="#" id="markdown-link-0" class="toggle-link-markdown" style="display: none;">
+                  Show markdown
+                </a>
+              
+            
+            
+          </div>
+          
+        
+      </div>
+    
+  </div>
+
+  <!-- keywords -->
+  <div class="row bb vertical-align md-field md-keywords">
+    <div class="col-md-3 col-lg-3">
+      Keywords:
+    </div>
+    
+      <div class="col-md-9 col-lg-9 ">
+        <span class="no-content">-</span>
+      </div>
+    
+  </div>
+
+  <!-- related information -->
+  <div class="row bb vertical-align md-field md-relatedInformations">
+    <div class="col-md-3 col-lg-3">
+      Related information:
+    </div>
+    
+      <div class="col-md-9 col-lg-9 ">
+        <span class="no-content">-</span>
+      </div>
+    
+  </div>
+
+  <!-- language -->
+  <div class="row bb vertical-align md-field md-language">
+    <div class="col-md-3 col-lg-3">
+      Language:
+    </div>
+    
+      <div class="col-md-9 col-lg-9 ">
+        <span class="no-content">-</span>
+      </div>
+    
+  </div>
+
+  <!-- publishers -->
+  
+    <div class="row bb vertical-align md-field md-publishers">
+      <div class="col-md-3 col-lg-3">
+        Publishers:
+      </div>
+      <div class="col-md-9 col-lg-9 ">
+        
+          
+            
+
+            
+              <a property="url" class="ror-icon-link" href="https://ror.org/04t3en479">Karlsruhe Institute of Technology</a>
+            
+
+          
+
+        
+      </div>
+    </div>
+  
+
+  <!-- productionYear -->
+  <div class="row bb vertical-align md-field md-productionYear">
+    <div class="col-md-3 col-lg-3">
+      Production year:
+    </div>
+    <div class="col-md-9 col-lg-9 ">
+      <time property="dateCreated">2018</time>
+    </div>
+  </div>
+
+  <!-- subjectAreas -->
+  <div class="row bb vertical-align md-field md-subjectAreas">
+    <div class="col-md-3 col-lg-3">
+      Subject areas:
+    </div>
+    <div class="col-md-9 col-lg-9 ">
+      
+        
+          
+            <span>Engineering</span>
+          
+          <br>
+        
+      
+    </div>
+  </div>
+
+  <!-- objectType -->
+  <div class="row bb vertical-align md-field md-resource">
+    <div class="col-md-3 col-lg-3">
+      Resource type:
+    </div>
+    <div class="col-md-9 col-lg-9 ">
+      
+        <span>Dataset</span>
+      
+    </div>
+  </div>
+  <!-- geolocation : RAD-621 -->
+
+  <!-- data source -->
+  <div class="row bb vertical-align md-field md-dataSources">
+    <div class="col-md-3 col-lg-3">
+      Data source:
+    </div>
+    
+      <div class="col-md-9 col-lg-9 ">
+        <span class="no-content">-</span>
+      </div>
+    
+  </div>
+
+  <!-- software -->
+    
+      <div class="row bb vertical-align md-field">
+	      <div class="col-md-3 col-lg-3">
+	        Software used:
+	      </div>
+	      <div class="col-md-9 col-lg-9 ">
+            <span class="no-content">-</span>
+	      </div>
+      </div>
+    
+
+  <!-- data processing -->
+  <div class="row bb vertical-align md-field md-processings">
+    <div class="col-md-3 col-lg-3">
+      Data processing:
+    </div>
+    
+      <div class="col-md-9 col-lg-9 ">
+        <span class="no-content">-</span>
+      </div>
+    
+  </div>
+
+  
+    <div class="row bb vertical-align md-field md-publicationYear">
+      <div class="col-md-3 col-lg-3">
+        Publication year:
+      </div>
+      <div class="col-md-9 col-lg-9 ">
+        <time property="dateCreated">2023</time>
+      </div>
+    </div>
+   
+
+  <!-- rights, RAD-2100 -->
+   
+  <!-- rights holders -->
+  
+    <div class="row bb vertical-align md-field md-rightsHolders">
+      <div class="col-md-3 col-lg-3">
+        Rights holders:
+      </div>
+      <div class="col-md-9 col-lg-9 ">
+        
+          
+            <div property="copyrightHolder">
+              
+
+              
+                <span>Weber, Marc</span>
+              
+            </div>
+          
+        
+      </div>
+    </div>
+  
+
+  <!-- funding -->
+  
+    <div class="row bb vertical-align md-field md-fundingReferences">
+      <div class="col-md-3 col-lg-3">
+        Funding:
+      </div>
+      <div class="col-md-9 col-lg-9 ">
+        
+          <span class="no-content">-</span>
+        
+      </div>
+    </div>
+  
+
+</div>
+
+<div id="data-toggler" class="mt-s">
+  <a href="#" class="toggle-more bt">
+    <span class="icon icon-caret-down more"></span>
+    <span class="icon icon-caret-up less"></span>
+    <span class="toggle-label more">Show more</span>
+    <span class="toggle-label less">Show less</span>
+  </a>
+</div>
+            </div>
+            
+            <!-- CONTENT -->
+            <div id="content" class="tab-content">
+              
+                
+                  
+
+<table id="files-table" class="table" data-current-entity-id="bCtGxdTklQlfQcAq" width="100%">
+  <thead>
+  <tr>
+    <th class="col-md-4">
+      Name
+    </th>
+    <th class="col-md-2">
+      Storage
+    </th>
+    <th class="col-md-2">
+      Metadata
+    </th>
+    <th class="col-md-2" aria-label="No value">
+      Upload
+    </th>
+    <th class="col-md-2">
+      Action
+    </th>
+  </tr>
+  </thead>
+</table>
+                
+              
+            </div>
+            <!-- STATISTICS -->
+            <div id="statistics" class="tab-content">
+              
+
+
+<div style="display: flex;justify-content: center;">
+    <div id="spinner-statistics" class="spinner-raw"></div>
+</div>
+
+            </div>
+            <!-- TECHNICAL -->
+            <div id="technical" class="tab-content">
+              
+
+
+
+
+<div class="container-fluid">
+      <div class="row bb vertical-align tmd-status">
+        <div class="col-md-3 col-lg-3">
+          Status:
+        </div>
+        <div class="col-md-9 col-lg-9">
+          
+            Published
+          
+        </div>
+      </div>
+      <div class="row bb vertical-align tmd-status-creator">
+        <div class="col-md-3 col-lg-3">
+          Uploaded by:
+        </div>
+        <div class="col-md-9 col-lg-9">
+          kitopen
+        </div>
+      </div>
+      <div class="row bb vertical-align tmd-creation">
+        <div class="col-md-3 col-lg-3">
+          Created on:
+        </div>
+        <div class="col-md-9 col-lg-9">
+          <time property="dateCreated">2023-04-20</time>
+        </div>
+      </div>
+      
+      
+        <div class="row bb vertical-align tmd-archiv-date">
+          <div class="col-md-3 col-lg-3">
+            Archiving date:
+          </div>
+          <div class="col-md-9 col-lg-9">
+            
+              2023-06-21
+            
+          </div>
+        </div>
+        <div class="row bb vertical-align tmd-archive-size">
+          <div class="col-md-3 col-lg-3">
+            Archive size:
+          </div>
+          <div class="col-md-9 col-lg-9">
+            11.6 MB
+          </div>
+        </div>
+        <div class="row bb vertical-align tmd-creator">
+          <div class="col-md-3 col-lg-3">
+            Archive creator:
+          </div>
+          <div class="col-md-9 col-lg-9">
+            
+              kitopen
+            
+          </div>
+        </div>
+        <div class="row bb vertical-align tmd-checksum">
+          <div class="col-md-3 col-lg-3">
+            Archive checksum:
+          </div>
+          <div class="col-md-9 col-lg-9">
+            22d9aac00d1a2b4c97aa35fd7a103ba4
+            (MD5)
+          </div>
+        </div>
+        
+      
+      
+        <div class="row bb vertical-align tmd-embargo">
+          <div class="col-md-3 col-lg-3">
+            Embargo period:
+          </div>
+          <div class="col-md-9 col-lg-9">
+            
+               -
+            
+          </div>
+        </div>
+      
+      
+
+
+
+
+  <!-- OpenStreetMaps -->
+  
+
+</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="col-md-3 col-md-offset-1 col-lg-3 col-lg-offset-1 side-block block" id="navigation-right">
+        <div id="sticky-column" data-scroll="">
+          <div class="container-fluid pb-m">
+            
+              
+
+
+
+
+
+
+
+
+<div class="row">
+  
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+</div>
+
+<div id="action-bar-dataset" class="dataset-archived">
+  <div class="container-fluid">
+    
+
+    
+
+    <div class="row">
+      <div class="col-md-12 col-lg-12 dataset-identifier">
+        
+          DOI:  <a class="doi-link" href="https://dx.doi.org/10.35097/1130">10.35097/1130</a><br>
+        
+      </div>
+    </div>
+
+    <div class="row mb">
+      <div class="col-md-12 col-lg-12">
+        
+        
+          Publication date:
+        
+        
+          2023-06-21
+        
+      </div>
+    </div>
+
+    <div class="row mb">
+      <div class="col-md-12 col-lg-12">
+        
+            
+              <div class="mb-s"><strong>Download Dataset</strong></div>
+              <a href="#" class="dataset-download-bagit-link btn btn-small btn-primary btn-block" data-terms-accepted="">
+                Download (11.6 MB)
+              </a>
+                <a href="#" class="hidden dataset-download-link btn btn-small btn-primary btn-block" data-terms-accepted="">
+                    Download (11.5 MB)
+                </a>
+            
+        
+        <br>
+        <br>
+        
+      </div>
+    </div>
+
+    <div class="row mb">
+      <div class="col-md-12 col-lg-12">
+        <div class="mb-s"><strong>Download Metadata</strong></div>
+<div class="export-metadata-div">
+    <div class='select-wrapper-inline '><label>
+        <select id="metadata-export-select" aria-label="Download metadata">
+            
+                
+                    <option value="exportradarmetadata">RADAR</option>
+                
+            
+                
+                    <option value="exportdatacite">DataCite</option>
+                
+            
+                
+                    <option value="exportoaidc">OAI-DC</option>
+                
+            
+                
+                    <option value="exportJsonld">Schema.org</option>
+                
+            
+                
+                    <option value="exportJson">JSON</option>
+                
+            
+                
+                    <option value="exportpremis">PREMIS</option>
+                
+            
+                
+                    <option value="exportbibtex">BibTex</option>
+                
+            
+                
+                    <option value="exportendnote">Endnote</option>
+                
+            
+                
+                    <option value="exportris">RIS</option>
+                
+            
+        </select>
+    </label></div>
+
+    <button id="download-metadata" class="btn btn-primary btn-small" >
+        Download
+    </button>
+</div>
+      </div>
+    </div>
+
+    
+
+    
+
+    
+
+    
+
+
+
+    <div id="total-statistics">
+      
+
+<div class="row mb">
+  <div class="col-md-12 col-lg-12">
+    <div class="mb-s"><strong>Statistics</strong></div>
+    <div>
+      <div class="col-md-4 col-lg-4 bl">
+        <div class="blink"><span id="totalAccess">0</span><br>
+        Views
+        </div>
+      </div>
+      <div class="col-md-8 col-lg-8 bl">
+        <div class="blink"><span id="totalDownloads">0</span><br>
+        Downloads
+      </div>
+      </div>
+    </div>
+  </div>
+</div>
+    </div>
+    <div class="row mb">
+      <div class="col-md-12 col-lg-12">
+        <div class="mb-s"><strong>Rights statement for the dataset</strong></div>
+        This work is licensed under<br>
+        <a class='cc-link' href='https://creativecommons.org/licenses/by/4.0/deed.en'><span>CC BY 4.0</span><br><img src="/radar/assets/licenses/creative_commons/by-04d377d968557a6092bccb1617db5a65.png" alt="CC icon" class="licence-logo"/></a>
+      </div>
+    </div>
+
+    <div class="row mb">
+      
+
+<div class="col-md-12 col-lg-12">
+  <div>
+    <div class="mb-s"><strong>Cite Dataset</strong></div>
+    <div class='select-wrapper-inline '><label>
+      <select id="citation-dropdown" data-doi="10.35097/1130">
+        <option value="radar">RADAR</option>
+        
+          <option value="apa">APA</option>
+          <option value="harvard-cite-them-right">Harvard</option>
+          <option value="modern-language-association">MLA</option>
+          <option value="vancouver">Vancouver</option>
+          <option value="chicago-fullnote-bibliography">Chicago</option>
+          <option value="ieee">IEEE</option>
+        
+      </select>
+    </label></div>
+    <button id="citation-copy" class="btn btn-primary btn-small" >
+      Copy
+    </button>
+  </div>
+  <div id="radar-citation" style="clear:both;">
+    
+      Weber, Marc
+    
+    (2023): Automotive OBD-II Dataset.
+    
+      Karlsruhe Institute of Technology.
+    DOI: 10.35097/1130
+  </div>
+  <div id="crosscite-citation" style="display: none;clear:both;">
+  </div>
+</div>
+    </div>
+  </div>
+</div>
+            
+          </div>
+        </div>
+      </div>
+    </div>
+
+  <script type="application/ld+json">
+    {
+  "@graph" : [ {
+    "id" : "_:b0",
+    "type" : "Thing",
+    "name" : "Weber, Marc"
+  }, {
+    "id" : "_:b1",
+    "type" : "Person",
+    "familyName" : "Weber",
+    "givenName" : "Marc",
+    "name" : "Weber, Marc"
+  }, {
+    "id" : "_:b2",
+    "type" : "Organization",
+    "name" : "Karlsruhe Institute of Technology",
+    "schema:sameAs" : "https://ror.org/04t3en479"
+  }, {
+    "id" : "_:b3",
+    "type" : "DataDownload",
+    "contentSize" : "11554816 bytes",
+    "schema:contentUrl" : "https://www.radar-service.eu/radar-backend/archives/bCtGxdTklQlfQcAq/versions/1/content",
+    "encodingFormat" : "application/x-tar"
+  }, {
+    "id" : "https://radar.kit.edu/id/bCtGxdTklQlfQcAq",
+    "type" : "Dataset",
+    "copyrightHolder" : {
+      "id" : "_:b0"
+    },
+    "creator" : {
+      "id" : "_:b1"
+    },
+    "schema:datePublished" : "2023-06-21",
+    "description" : "CSV data containing ten vehicle signals logged via the OBD-II interface: Engine coolant temperature, intake manifold absolute pressure, engine RPM, vehicle speed sensor, intake air temperature, air flow rate from mass flow sensor, absolute throttle position, ambient air temperature as well as the accelerator pedal positions D and E.\nThe data was recorded with the OBD-II dongle KIWI 3 from PLX Devices in combination with the smartphone application OBD Auto Doctor from Creosys on an iOS device.\nThe file name is assembled according to the following scheme: <yyyy-mm-dd>_<brand>_<model>_<from>_<to>_<condition>_<extension>.csv\n- <from> and <to> represent start and end position of the log according to the German number plates, i.e. KA = Karlsruhe etc.\n- <condition> is a label indicating the principle road conditions (e.g. normal, frei/free, Stau/busy)\n- <extension> is optional and marks special situations occurring in the vehicle speed data",
+    "distribution" : {
+      "id" : "_:b3"
+    },
+    "identifier" : "https://doi.org/10.35097/1130",
+    "isAccessibleForFree" : true,
+    "keywords" : "Engineering",
+    "name" : "Automotive OBD-II Dataset",
+    "publisher" : {
+      "id" : "_:b2"
+    },
+    "schema:url" : "https://www.radar-service.eu/radar/en/dataset/bCtGxdTklQlfQcAq"
+  } ],
+  "@context" : "http://schema.org/"
+}
+
+  </script>
+  
+      </div>
+    
+  </div>
+</div>
+
+
+
+<footer class="footer">
+  <div class="container-fluid">
+    <div class="row">
+      <div class="col-md-6 col-lg-6 col-lg-offset-1 links">
+        <div class="row">
+          <div class="col-md-11 col-lg-11 links">
+          <ul class="list-inline">
+            <li>
+              <a href="https://www.bibliothek.kit.edu/radar.php">About the Repository</a>
+            </li>
+            <li>
+            </li>
+            <li>
+              <a href="https://www.kit.edu/privacypolicy.php">Privacy Policy</a>
+            </li>
+            <li>
+            </li>
+            <li>
+              <a href="https://www.bibliothek.kit.edu/english/radar-terms-of-use.php">Terms and Conditions</a>
+            </li>
+            <li>
+            </li>
+            <li>
+              <a href="https://www.bibliothek.kit.edu/english/76.php">Legal Notices</a>
+            </li>
+            <li>
+            </li>
+            <li>
+              <a href="https://www.kit.edu/accessibility.php">Accessibility Declaration</a>
+            </li>
+          </ul>
+         </div>
+        </div>
+            <div class="row foot-row-version">
+              <div class="col-md-9 col-lg-9">1.24.6 (f) / 1.17.6 (b) / 1.24.1 (i)</div>
+            </div>
+      </div>
+      <div class="col-md-6 col-lg-4">
+        <div class="row">
+          <div class="col-md-12 col-lg-12">
+              <div class="footer-image-container">
+                  
+              </div>
+          </div>
+        </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</footer>
+
+<div id="globalJsVariables" class="hidden"
+     data-js-startpage-url="https://radar.kit.edu"
+     data-js-backend-url="https://radar.kit.edu/radar-backend"
+     data-js-ingest-url="https://radar.kit.edu/radar-ingest/"
+     data-js-frontend-url="https://radar.kit.edu/radar/"
+     data-js-context-path="/radar"
+     data-current-language="en"
+     data-js-osm-tileservers="//a.tile.maps.deutsche-digitale-bibliothek.de/{z}/{x}/{y}.png,//b.tile.maps.deutsche-digitale-bibliothek.de/{z}/{x}/{y}.png,//c.tile.maps.deutsche-digitale-bibliothek.de/{z}/{x}/{y}.png"
+     data-js-user-contract-name=""
+     data-js-download-tc-accepted="false"
+     data-js-upload-tc-accepted=""
+     data-ror-api="https://api.ror.org/v2/organizations?query="
+     data-instance-name="RADAR"
+>
+</div>
+
+
+    
+        <div class="hidden" id="upload-terms-text" data-entity-id="bCtGxdTklQlfQcAq">
+            
+        </div>
+    
+
+
+    <div class="hidden" id="download-terms-text">
+        <div class="contentWrap"></div><breadcrumbs></breadcrumbs><div class="content"><p>RADAR4KIT ist ein über das Internet nutzbarer Dienst für die Archivierung und Publikation
+                    von Forschungsdaten aus abgeschlossenen wissenschaftlichen Studien und Projekten für
+                    Forschende des KIT. Betreiber ist das Karlsruher Institut für Technologie (KIT). RADAR4KIT        setzt auf dem von FIZ Karlsruhe angebotenen Dienst RADAR auf. Die Speicherung der Daten   findet ausschließlich auf IT-Infrastruktur des KIT am Steinbuch Centre for Computing (SCC)
+                    statt.</p><p>Eine inhaltliche Bewertung und Qualitätsprüfung findet ausschließlich durch die Datengeberinnen
+                    und Datengeber statt.</p><ol><li>Das Nutzungsverhältnis zwischen Ihnen („Datennutzerin“ bzw. „Datennutzer“) und dem KIT
+                        erschöpft sich im Download von Datenpaketen oder Metadaten. Das KIT behält sich vor, die        Nutzung von RADAR4KIT einzuschränken oder den Dienst ganz einzustellen.</li><li>Sofern Sie sich als Datennutzerin oder als Datennutzer registrieren lassen bzw. über
+                        Shibboleth legitimieren, kann Ihnen seitens der Datengeberin oder des Datengebers Zugriff    auch auf unveröffentlichte Dokumente gewährt werden.</li><li>Den Schutz Ihrer persönlichen Daten erklären die Datenschutzbestimmungen.</li><li>Das KIT übernimmt für Richtigkeit, Aktualität und Zuverlässigkeit der bereitgestellten
+                        Inhalte keine Gewährleistung und Haftung, außer im Fall einer zwingenden gesetzlichen
+                        Haftung.</li><li>Das KIT stellt Ihnen als Datennutzerin oder als Datennutzer für das Recherchieren in
+                        RADAR4KIT und für das Herunterladen von Datenpaketen keine Kosten in Rechnung.</li><li>Sie müssen die mit dem Datenpaket verbundenen Lizenzregelungen einhalten.</li></ol></div></div>
+    </div>
+
+<script type="text/javascript" src="/radar/assets/i18n/en/messages-1771486032062.js" ></script>
+
+
+</body>
+</html>

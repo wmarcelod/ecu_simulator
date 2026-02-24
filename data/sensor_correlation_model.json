@@ -1,0 +1,951 @@
+{
+  "version": "1.0.0",
+  "author": "Marcelo Duchene",
+  "description": "Sensor correlation model for ECU Simulator - derived from automotive physics and OBD-II data analysis",
+  "data_source": "Synthetic OBD-II dataset based on real-world automotive physics + Edge Impulse OBD data validation",
+  "sensor_ranges": {
+    "rpm": {
+      "min": 0,
+      "max": 8000,
+      "unit": "rpm",
+      "pid": "0x0C"
+    },
+    "speed": {
+      "min": 0,
+      "max": 255,
+      "unit": "km/h",
+      "pid": "0x0D"
+    },
+    "coolant_temp": {
+      "min": -40,
+      "max": 215,
+      "unit": "degC",
+      "pid": "0x05"
+    },
+    "intake_air_temp": {
+      "min": -40,
+      "max": 215,
+      "unit": "degC",
+      "pid": "0x0F"
+    },
+    "throttle": {
+      "min": 0,
+      "max": 100,
+      "unit": "%",
+      "pid": "0x11"
+    },
+    "engine_load": {
+      "min": 0,
+      "max": 100,
+      "unit": "%",
+      "pid": "0x04"
+    },
+    "maf": {
+      "min": 0,
+      "max": 655.35,
+      "unit": "g/s",
+      "pid": "0x10"
+    },
+    "map_kpa": {
+      "min": 0,
+      "max": 255,
+      "unit": "kPa",
+      "pid": "0x0B"
+    },
+    "ambient_temp": {
+      "min": -40,
+      "max": 215,
+      "unit": "degC",
+      "pid": "0x46"
+    },
+    "fuel_level": {
+      "min": 0,
+      "max": 100,
+      "unit": "%",
+      "pid": "0x2F"
+    },
+    "voltage": {
+      "min": 0,
+      "max": 16,
+      "unit": "V",
+      "pid": "0x42"
+    },
+    "oil_temp": {
+      "min": -40,
+      "max": 215,
+      "unit": "degC",
+      "pid": "0x5C"
+    },
+    "barometric_pressure": {
+      "min": 0,
+      "max": 255,
+      "unit": "kPa",
+      "pid": "0x33"
+    },
+    "timing_advance": {
+      "min": -64,
+      "max": 63.5,
+      "unit": "deg",
+      "pid": "0x0E"
+    }
+  },
+  "correlation_matrix": {
+    "rpm": {
+      "rpm": 1.0,
+      "speed": 0.9346,
+      "coolant_temp": -0.186,
+      "intake_air_temp": -0.2457,
+      "throttle": -0.3554,
+      "engine_load": -0.295,
+      "maf": 0.0031,
+      "map_kpa": -0.3284,
+      "ambient_temp": -0.0011,
+      "fuel_level": 0.1963,
+      "voltage": -0.0171
+    },
+    "speed": {
+      "rpm": 0.9346,
+      "speed": 1.0,
+      "coolant_temp": -0.2511,
+      "intake_air_temp": -0.2039,
+      "throttle": -0.2916,
+      "engine_load": -0.243,
+      "maf": 0.0032,
+      "map_kpa": -0.266,
+      "ambient_temp": -0.0046,
+      "fuel_level": 0.2445,
+      "voltage": -0.0172
+    },
+    "coolant_temp": {
+      "rpm": -0.186,
+      "speed": -0.2511,
+      "coolant_temp": 1.0,
+      "intake_air_temp": -0.0545,
+      "throttle": -0.0274,
+      "engine_load": -0.0642,
+      "maf": -0.0112,
+      "map_kpa": -0.0341,
+      "ambient_temp": -0.0026,
+      "fuel_level": -0.6688,
+      "voltage": 0.0141
+    },
+    "intake_air_temp": {
+      "rpm": -0.2457,
+      "speed": -0.2039,
+      "coolant_temp": -0.0545,
+      "intake_air_temp": 1.0,
+      "throttle": 0.7963,
+      "engine_load": 0.7951,
+      "maf": 0.0255,
+      "map_kpa": 0.7941,
+      "ambient_temp": 0.002,
+      "fuel_level": 0.0324,
+      "voltage": 0.0037
+    },
+    "throttle": {
+      "rpm": -0.3554,
+      "speed": -0.2916,
+      "coolant_temp": -0.0274,
+      "intake_air_temp": 0.7963,
+      "throttle": 1.0,
+      "engine_load": 0.9773,
+      "maf": 0.0213,
+      "map_kpa": 0.9956,
+      "ambient_temp": 0.0009,
+      "fuel_level": 0.0106,
+      "voltage": -0.002
+    },
+    "engine_load": {
+      "rpm": -0.295,
+      "speed": -0.243,
+      "coolant_temp": -0.0642,
+      "intake_air_temp": 0.7951,
+      "throttle": 0.9773,
+      "engine_load": 1.0,
+      "maf": 0.0207,
+      "map_kpa": 0.9748,
+      "ambient_temp": 0.0025,
+      "fuel_level": 0.0379,
+      "voltage": -0.0027
+    },
+    "maf": {
+      "rpm": 0.0031,
+      "speed": 0.0032,
+      "coolant_temp": -0.0112,
+      "intake_air_temp": 0.0255,
+      "throttle": 0.0213,
+      "engine_load": 0.0207,
+      "maf": 1.0,
+      "map_kpa": 0.0227,
+      "ambient_temp": 0.0024,
+      "fuel_level": 0.0058,
+      "voltage": 0.0017
+    },
+    "map_kpa": {
+      "rpm": -0.3284,
+      "speed": -0.266,
+      "coolant_temp": -0.0341,
+      "intake_air_temp": 0.7941,
+      "throttle": 0.9956,
+      "engine_load": 0.9748,
+      "maf": 0.0227,
+      "map_kpa": 1.0,
+      "ambient_temp": 0.0008,
+      "fuel_level": 0.0152,
+      "voltage": -0.0018
+    },
+    "ambient_temp": {
+      "rpm": -0.0011,
+      "speed": -0.0046,
+      "coolant_temp": -0.0026,
+      "intake_air_temp": 0.002,
+      "throttle": 0.0009,
+      "engine_load": 0.0025,
+      "maf": 0.0024,
+      "map_kpa": 0.0008,
+      "ambient_temp": 1.0,
+      "fuel_level": 0.0034,
+      "voltage": -0.0115
+    },
+    "fuel_level": {
+      "rpm": 0.1963,
+      "speed": 0.2445,
+      "coolant_temp": -0.6688,
+      "intake_air_temp": 0.0324,
+      "throttle": 0.0106,
+      "engine_load": 0.0379,
+      "maf": 0.0058,
+      "map_kpa": 0.0152,
+      "ambient_temp": 0.0034,
+      "fuel_level": 1.0,
+      "voltage": -0.0089
+    },
+    "voltage": {
+      "rpm": -0.0171,
+      "speed": -0.0172,
+      "coolant_temp": 0.0141,
+      "intake_air_temp": 0.0037,
+      "throttle": -0.002,
+      "engine_load": -0.0027,
+      "maf": 0.0017,
+      "map_kpa": -0.0018,
+      "ambient_temp": -0.0115,
+      "fuel_level": -0.0089,
+      "voltage": 1.0
+    }
+  },
+  "regression_models": {
+    "rpm_throttle_to_maf": {
+      "features": [
+        "rpm",
+        "throttle",
+        "rpm^2",
+        "rpm throttle",
+        "throttle^2"
+      ],
+      "coefficients": [
+        -3.826e-05,
+        6.232e-05,
+        1e-08,
+        2.6e-07,
+        7.5e-07
+      ],
+      "intercept": 1.517816,
+      "r2": 0.0007,
+      "type": "polynomial_degree2"
+    },
+    "throttle_rpm_to_load": {
+      "features": [
+        "throttle",
+        "rpm",
+        "throttle^2",
+        "throttle rpm",
+        "rpm^2"
+      ],
+      "coefficients": [
+        0.29684996,
+        -0.00257813,
+        0.00365512,
+        7.3e-05,
+        1.2e-06
+      ],
+      "intercept": 12.56645,
+      "r2": 0.9737,
+      "type": "polynomial_degree2"
+    },
+    "throttle_rpm_to_map": {
+      "features": [
+        "throttle",
+        "rpm",
+        "throttle^2",
+        "throttle rpm",
+        "rpm^2"
+      ],
+      "coefficients": [
+        0.70110757,
+        0.00072796,
+        -1.709e-05,
+        -2.3e-07,
+        2e-08
+      ],
+      "intercept": 29.430312,
+      "r2": 0.9921,
+      "type": "polynomial_degree2"
+    },
+    "rpm_to_speed": {
+      "coefficient": 0.051843,
+      "intercept": -43.073,
+      "r2": 0.7594,
+      "gear_ratios_rpm_per_kmh": {
+        "gear1": 131.43,
+        "gear2": 55.78,
+        "gear3": 41.0,
+        "gear4": 34.57,
+        "gear5": 23.22
+      },
+      "type": "linear_with_gears"
+    }
+  },
+  "rf_feature_importances": {
+    "speed": {
+      "r2": 0.9897,
+      "feature_importances": {
+        "throttle": 0.0423,
+        "rpm": 0.9577
+      }
+    },
+    "engine_load": {
+      "r2": 0.9775,
+      "feature_importances": {
+        "throttle": 0.9865,
+        "rpm": 0.0135
+      }
+    },
+    "maf": {
+      "r2": 0.0595,
+      "feature_importances": {
+        "throttle": 0.412,
+        "rpm": 0.588
+      }
+    },
+    "map_kpa": {
+      "r2": 0.9929,
+      "feature_importances": {
+        "throttle": 0.9991,
+        "rpm": 0.0009
+      }
+    }
+  },
+  "scenario_statistics": {
+    "idle": {
+      "rpm": {
+        "mean": 1045.596,
+        "std": 320.53,
+        "min": 694.0,
+        "max": 2703.7,
+        "median": 918.1,
+        "q25": 762.75,
+        "q75": 1333.675
+      },
+      "speed": {
+        "mean": 7.82,
+        "std": 10.696,
+        "min": 0.0,
+        "max": 103.2,
+        "median": 3.5,
+        "q25": 0.4,
+        "q75": 11.325
+      },
+      "coolant_temp": {
+        "mean": 39.76,
+        "std": 3.983,
+        "min": 24.6,
+        "max": 42.6,
+        "median": 41.3,
+        "q25": 40.1,
+        "q75": 41.7
+      },
+      "intake_air_temp": {
+        "mean": 31.319,
+        "std": 0.505,
+        "min": 29.8,
+        "max": 33.0,
+        "median": 31.3,
+        "q25": 31.0,
+        "q75": 31.7
+      },
+      "throttle": {
+        "mean": 2.446,
+        "std": 0.464,
+        "min": 0.4,
+        "max": 3.8,
+        "median": 2.5,
+        "q25": 2.2,
+        "q75": 2.8
+      },
+      "engine_load": {
+        "mean": 12.092,
+        "std": 1.516,
+        "min": 7.1,
+        "max": 17.8,
+        "median": 12.1,
+        "q25": 11.1,
+        "q75": 13.1
+      },
+      "maf": {
+        "mean": 1.498,
+        "std": 0.304,
+        "min": 0.32,
+        "max": 2.39,
+        "median": 1.49,
+        "q25": 1.31,
+        "q75": 1.7
+      },
+      "map_kpa": {
+        "mean": 31.914,
+        "std": 1.04,
+        "min": 28.7,
+        "max": 35.0,
+        "median": 31.9,
+        "q25": 31.2,
+        "q75": 32.6
+      },
+      "ambient_temp": {
+        "mean": 27.486,
+        "std": 0.102,
+        "min": 27.2,
+        "max": 27.8,
+        "median": 27.5,
+        "q25": 27.4,
+        "q75": 27.6
+      },
+      "fuel_level": {
+        "mean": 84.985,
+        "std": 0.01,
+        "min": 84.97,
+        "max": 85.0,
+        "median": 84.98,
+        "q25": 84.98,
+        "q75": 84.99
+      },
+      "voltage": {
+        "mean": 14.008,
+        "std": 0.209,
+        "min": 13.35,
+        "max": 14.62,
+        "median": 14.01,
+        "q25": 13.86,
+        "q75": 14.15
+      }
+    },
+    "accel": {
+      "rpm": {
+        "mean": 956.426,
+        "std": 454.072,
+        "min": 703.1,
+        "max": 2170.3,
+        "median": 759.8,
+        "q25": 745.8,
+        "q75": 787.7
+      },
+      "speed": {
+        "mean": 8.498,
+        "std": 14.552,
+        "min": 0.0,
+        "max": 52.3,
+        "median": 2.8,
+        "q25": 1.0,
+        "q75": 4.0
+      },
+      "coolant_temp": {
+        "mean": 39.871,
+        "std": 3.737,
+        "min": 25.4,
+        "max": 42.7,
+        "median": 41.4,
+        "q25": 40.2,
+        "q75": 41.7
+      },
+      "intake_air_temp": {
+        "mean": 33.432,
+        "std": 0.619,
+        "min": 30.9,
+        "max": 35.4,
+        "median": 33.4,
+        "q25": 33.0,
+        "q75": 33.8
+      },
+      "throttle": {
+        "mean": 53.527,
+        "std": 7.292,
+        "min": 19.9,
+        "max": 74.5,
+        "median": 54.0,
+        "q25": 49.3,
+        "q75": 58.3
+      },
+      "engine_load": {
+        "mean": 41.821,
+        "std": 5.519,
+        "min": 17.6,
+        "max": 59.3,
+        "median": 41.8,
+        "q25": 38.8,
+        "q75": 45.4
+      },
+      "maf": {
+        "mean": 1.518,
+        "std": 0.302,
+        "min": 0.51,
+        "max": 2.44,
+        "median": 1.52,
+        "q25": 1.31,
+        "q75": 1.74
+      },
+      "map_kpa": {
+        "mean": 67.627,
+        "std": 5.172,
+        "min": 43.9,
+        "max": 81.0,
+        "median": 68.0,
+        "q25": 64.9,
+        "q75": 71.0
+      },
+      "ambient_temp": {
+        "mean": 27.484,
+        "std": 0.104,
+        "min": 27.1,
+        "max": 27.8,
+        "median": 27.5,
+        "q25": 27.4,
+        "q75": 27.6
+      },
+      "fuel_level": {
+        "mean": 84.985,
+        "std": 0.01,
+        "min": 84.97,
+        "max": 85.0,
+        "median": 84.98,
+        "q25": 84.98,
+        "q75": 84.99
+      },
+      "voltage": {
+        "mean": 14.004,
+        "std": 0.199,
+        "min": 13.26,
+        "max": 14.75,
+        "median": 14.0,
+        "q25": 13.87,
+        "q75": 14.14
+      }
+    },
+    "cruise": {
+      "rpm": {
+        "mean": 1612.106,
+        "std": 278.441,
+        "min": 724.5,
+        "max": 2830.9,
+        "median": 1625.2,
+        "q25": 1583.95,
+        "q75": 1643.9
+      },
+      "speed": {
+        "mean": 42.067,
+        "std": 15.781,
+        "min": 3.8,
+        "max": 121.0,
+        "median": 39.9,
+        "q25": 39.2,
+        "q75": 40.4
+      },
+      "coolant_temp": {
+        "mean": 40.194,
+        "std": 3.204,
+        "min": 26.2,
+        "max": 42.8,
+        "median": 41.5,
+        "q25": 40.5,
+        "q75": 41.8
+      },
+      "intake_air_temp": {
+        "mean": 31.946,
+        "std": 0.529,
+        "min": 30.1,
+        "max": 34.5,
+        "median": 31.9,
+        "q25": 31.6,
+        "q75": 32.3
+      },
+      "throttle": {
+        "mean": 19.335,
+        "std": 4.106,
+        "min": 9.1,
+        "max": 52.9,
+        "median": 18.3,
+        "q25": 17.6,
+        "q75": 19.2
+      },
+      "engine_load": {
+        "mean": 20.988,
+        "std": 2.788,
+        "min": 10.1,
+        "max": 42.4,
+        "median": 20.6,
+        "q25": 19.3,
+        "q75": 22.0
+      },
+      "maf": {
+        "mean": 1.503,
+        "std": 0.305,
+        "min": 0.46,
+        "max": 2.61,
+        "median": 1.5,
+        "q25": 1.3,
+        "q75": 1.7
+      },
+      "map_kpa": {
+        "mean": 44.213,
+        "std": 2.913,
+        "min": 35.4,
+        "max": 67.3,
+        "median": 43.7,
+        "q25": 42.8,
+        "q75": 44.7
+      },
+      "ambient_temp": {
+        "mean": 27.484,
+        "std": 0.104,
+        "min": 27.1,
+        "max": 27.8,
+        "median": 27.5,
+        "q25": 27.4,
+        "q75": 27.6
+      },
+      "fuel_level": {
+        "mean": 84.985,
+        "std": 0.01,
+        "min": 84.97,
+        "max": 85.0,
+        "median": 84.99,
+        "q25": 84.98,
+        "q75": 84.99
+      },
+      "voltage": {
+        "mean": 13.994,
+        "std": 0.194,
+        "min": 13.29,
+        "max": 14.74,
+        "median": 14.0,
+        "q25": 13.86,
+        "q75": 14.12
+      }
+    },
+    "decel": {
+      "rpm": {
+        "mean": 1638.439,
+        "std": 253.582,
+        "min": 1385.3,
+        "max": 2811.2,
+        "median": 1584.6,
+        "q25": 1532.05,
+        "q75": 1622.45
+      },
+      "speed": {
+        "mean": 42.713,
+        "std": 17.595,
+        "min": 32.2,
+        "max": 120.0,
+        "median": 37.9,
+        "q25": 36.5,
+        "q75": 39.2
+      },
+      "coolant_temp": {
+        "mean": 40.325,
+        "std": 2.822,
+        "min": 27.4,
+        "max": 42.6,
+        "median": 41.4,
+        "q25": 40.5,
+        "q75": 41.8
+      },
+      "intake_air_temp": {
+        "mean": 31.328,
+        "std": 0.5,
+        "min": 29.7,
+        "max": 32.8,
+        "median": 31.3,
+        "q25": 31.0,
+        "q75": 31.7
+      },
+      "throttle": {
+        "mean": 0.621,
+        "std": 1.683,
+        "min": 0.0,
+        "max": 10.4,
+        "median": 0.1,
+        "q25": 0.0,
+        "q75": 0.4
+      },
+      "engine_load": {
+        "mean": 12.131,
+        "std": 1.533,
+        "min": 6.9,
+        "max": 20.9,
+        "median": 12.1,
+        "q25": 11.1,
+        "q75": 13.1
+      },
+      "maf": {
+        "mean": 1.492,
+        "std": 0.3,
+        "min": 0.16,
+        "max": 2.49,
+        "median": 1.48,
+        "q25": 1.3,
+        "q75": 1.7
+      },
+      "map_kpa": {
+        "mean": 31.116,
+        "std": 1.547,
+        "min": 27.6,
+        "max": 38.9,
+        "median": 30.9,
+        "q25": 30.2,
+        "q75": 31.7
+      },
+      "ambient_temp": {
+        "mean": 27.484,
+        "std": 0.104,
+        "min": 27.1,
+        "max": 27.8,
+        "median": 27.5,
+        "q25": 27.4,
+        "q75": 27.6
+      },
+      "fuel_level": {
+        "mean": 84.985,
+        "std": 0.009,
+        "min": 84.97,
+        "max": 85.0,
+        "median": 84.98,
+        "q25": 84.98,
+        "q75": 84.99
+      },
+      "voltage": {
+        "mean": 14.002,
+        "std": 0.202,
+        "min": 13.36,
+        "max": 14.62,
+        "median": 14.02,
+        "q25": 13.86,
+        "q75": 14.13
+      }
+    }
+  },
+  "physical_rules": {
+    "engine_off": {
+      "condition": "rpm == 0",
+      "constraints": {
+        "speed": 0,
+        "engine_load": 0,
+        "maf": 0,
+        "throttle": 0,
+        "map_kpa": 101,
+        "voltage": {
+          "min": 11.8,
+          "max": 12.8
+        }
+      }
+    },
+    "idle": {
+      "condition": "rpm in [600, 900] and speed < 5",
+      "constraints": {
+        "rpm": {
+          "min": 600,
+          "max": 900
+        },
+        "speed": {
+          "min": 0,
+          "max": 5
+        },
+        "engine_load": {
+          "min": 10,
+          "max": 30
+        },
+        "throttle": {
+          "min": 0,
+          "max": 7
+        },
+        "maf": {
+          "min": 1.5,
+          "max": 6.0
+        },
+        "map_kpa": {
+          "min": 25,
+          "max": 50
+        },
+        "voltage": {
+          "min": 13.2,
+          "max": 14.8
+        }
+      }
+    },
+    "acceleration": {
+      "condition": "throttle > 30 and rpm increasing",
+      "constraints": {
+        "engine_load": {
+          "min": 40,
+          "max": 100
+        },
+        "maf": {
+          "min": 10,
+          "max": 100
+        },
+        "map_kpa": {
+          "min": 50,
+          "max": 105
+        }
+      }
+    },
+    "cruise": {
+      "condition": "speed stable, throttle stable",
+      "constraints": {
+        "engine_load": {
+          "min": 15,
+          "max": 45
+        },
+        "throttle": {
+          "min": 10,
+          "max": 30
+        },
+        "maf": {
+          "min": 5,
+          "max": 25
+        }
+      }
+    },
+    "deceleration": {
+      "condition": "throttle == 0, speed decreasing",
+      "constraints": {
+        "throttle": {
+          "min": 0,
+          "max": 2
+        },
+        "engine_load": {
+          "min": 0,
+          "max": 15
+        },
+        "maf": {
+          "min": 0.5,
+          "max": 4
+        },
+        "map_kpa": {
+          "min": 20,
+          "max": 40
+        }
+      }
+    },
+    "thermal_model": {
+      "coolant_warmup_rate_degC_per_sec": 0.05,
+      "coolant_target_temp": 90,
+      "coolant_thermostat_threshold": 85,
+      "coolant_overheat_threshold": 105,
+      "oil_temp_follows_coolant_delay_sec": 40,
+      "oil_temp_offset_under_load": 10,
+      "iat_above_ambient_idle": 3,
+      "iat_above_ambient_load": 10
+    },
+    "fuel_consumption": {
+      "idle_consumption_ml_per_sec": 0.15,
+      "consumption_factor_per_maf": 0.07,
+      "tank_capacity_liters": 55
+    },
+    "voltage_model": {
+      "engine_running_min": 13.2,
+      "engine_running_max": 14.8,
+      "engine_running_nominal": 14.0,
+      "engine_off_min": 11.8,
+      "engine_off_max": 12.8,
+      "engine_off_nominal": 12.4
+    },
+    "gear_model": {
+      "gear_ratios": [
+        3.6,
+        2.0,
+        1.4,
+        1.0,
+        0.8
+      ],
+      "final_drive": 3.5,
+      "tire_circumference_m": 2.0,
+      "shift_points_kmh": [
+        0,
+        15,
+        30,
+        50,
+        80
+      ]
+    }
+  },
+  "noise_profiles": {
+    "rpm": {
+      "type": "gaussian",
+      "std": 15,
+      "description": "Normal engine RPM fluctuation"
+    },
+    "speed": {
+      "type": "gaussian",
+      "std": 0.5,
+      "description": "Speed sensor noise"
+    },
+    "coolant_temp": {
+      "type": "gaussian",
+      "std": 0.3,
+      "description": "Temperature sensor noise"
+    },
+    "intake_air_temp": {
+      "type": "gaussian",
+      "std": 0.5,
+      "description": "IAT sensor noise"
+    },
+    "throttle": {
+      "type": "gaussian",
+      "std": 0.3,
+      "description": "TPS noise"
+    },
+    "engine_load": {
+      "type": "gaussian",
+      "std": 1.5,
+      "description": "Calculated load noise"
+    },
+    "maf": {
+      "type": "gaussian",
+      "std": 0.3,
+      "description": "MAF sensor noise"
+    },
+    "map_kpa": {
+      "type": "gaussian",
+      "std": 1.0,
+      "description": "MAP sensor noise"
+    },
+    "voltage": {
+      "type": "gaussian",
+      "std": 0.2,
+      "description": "Voltage measurement noise"
+    },
+    "fuel_level": {
+      "type": "gaussian",
+      "std": 0.1,
+      "description": "Fuel level sensor noise"
+    }
+  },
+  "transition_time_constants": {
+    "throttle_tau_s": 0.3,
+    "rpm_accel_tau_s": 1.0,
+    "rpm_decel_tau_s": 1.5,
+    "speed_tau_s": 3.0,
+    "coolant_warmup_tau_s": 300,
+    "oil_temp_tau_s": 40,
+    "description": "Exponential approach time constants for smooth transitions"
+  }
+}

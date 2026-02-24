@@ -1,0 +1,102 @@
+@startuml data_flow_sequence
+!theme plain
+skinparam backgroundColor #FEFEFE
+
+title Fluxo de Dados — Simulação e Comunicação CAN
+
+actor "Usuário" as user
+participant "Dashboard\n(React)" as dash
+participant "ECU Simulator\n(TypeScript)" as ecu
+participant "Serial Connection\n(Web Serial API)" as serial
+participant "Arduino\n(Firmware C++)" as arduino
+participant "MCP2515\n(CAN Controller)" as mcp
+participant "CAN Bus" as can
+participant "Scanner OBD-II" as scanner
+
+== Inicialização ==
+user -> dash : Selecionar perfil de veículo
+dash -> ecu : switchProfile("sedan")
+  note right
+    Input: { profileId: "sedan" }
+  end note
+ecu -> ecu : Carregar pidRanges,\nDTCs, VIN
+dash -> ecu : start()
+ecu -> ecu : Iniciar tick() a cada 200ms
+
+== Simulação em Tempo Real (tick loop) ==
+loop Cada 200ms
+  ecu -> ecu : tick()
+  note right of ecu
+    Cadeia causal do modelo físico:
+    1. Cenário → throttle_target
+    2. throttle = approach(current, target, τ)
+    3. RPM = f(throttle, inércia)
+    4. engineLoad = f(throttle, RPM)
+    5. MAF = f(RPM, engineLoad)
+    6. MAP = f(throttle, baroPressure)
+    7. speed = f(RPM, gear, inércia)
+    8-13. Thermal, voltage, fuel...
+  end note
+  ecu -> dash : emitState(sensorState)
+    note right
+      Output: {
+        rpm: 750,
+        speed: 0,
+        coolantTemp: 90,
+        engineLoad: 20,
+        throttle: 12,
+        ...
+      }
+    end note
+  dash -> dash : Atualizar gauges,\ngráficos, indicadores
+end
+
+== Comunicação com Hardware ==
+user -> dash : Conectar Arduino
+dash -> serial : connect()
+serial -> arduino : USB Serial 115200bps
+arduino --> serial : "ECU Simulator Arduino v1.0"
+
+== Request OBD-II via CAN Bus ==
+scanner -> can : CAN Frame\nID: 0x7DF\n[02 01 0C 55 55 55 55 55]
+can -> mcp : Receber frame
+mcp -> arduino : Interrupção INT + SPI read
+arduino -> arduino : handleMode01(0x0C)
+  note right
+    Input: { mode: 0x01, pid: 0x0C }
+    RPM = 3000
+    raw = 3000 × 4 = 12000
+    A = 0x2E, B = 0xE0
+  end note
+arduino -> mcp : sendMsgBuf(0x7E8, ...)
+  note right
+    Output: [04 41 0C 2E E0 55 55 55]
+  end note
+mcp -> can : CAN Frame TX
+can -> scanner : Response RPM = 3000 rpm
+
+== Request OBD-II via Terminal Web ==
+user -> dash : Digitar "010C" no terminal
+dash -> ecu : sendCommand("010C")
+  note right
+    Input: { command: "010C" }
+  end note
+ecu -> ecu : handleMode01("0C")
+ecu --> dash : "41 0C 2E E0"
+  note right
+    Output: { response: "41 0C 2E E0" }
+  end note
+
+== Simulação de Ataque (Modo MANUAL) ==
+user -> dash : Sensor RPM → MANUAL = 0
+dash -> ecu : setManualValue("rpm", 0)
+  note right
+    Input: { key: "rpm", value: 0 }
+    sensorModes["rpm"] = {
+      mode: "manual",
+      manualValue: 0
+    }
+  end note
+ecu -> ecu : RPM fixo em 0\nSpeed continua em AUTO
+
+@enduml

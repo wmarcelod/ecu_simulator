@@ -1,0 +1,57 @@
+@startuml ml_integration
+!theme plain
+skinparam backgroundColor #FEFEFE
+
+title Integração do Modelo de ML no Simulador ECU
+
+package "Fase Offline (Python)" as offline {
+  [Dataset Sintético\n10.000 amostras] as dataset
+  [Treinamento\n(train_sensor_model.py)] as train
+  [Modelos Treinados\n- Polynomial Regression\n- Random Forest] as models
+  [sensor_correlation_model.json\n- Coeficientes de regressão\n- Correlações\n- Regras físicas\n- Perfis de ruído\n- Constantes de transição] as json
+  
+  dataset -> train
+  train -> models
+  models -> json
+}
+
+package "Fase Online (TypeScript/Browser)" as online {
+  [ECU Simulator\n(ecu-simulator.ts)] as ecu
+  [ML Parameters\n(importados do JSON)] as params
+  
+  json -down-> params : Carregado em\nbuild time ou\nruntime
+  params -> ecu : Alimentar tick()
+}
+
+note right of ecu
+  **Uso dos parâmetros ML no tick():**
+  
+  1. **Regressão Polinomial (R² > 0.97):**
+     - throttle_rpm_to_load:
+       load = 0.297×throttle - 0.003×rpm
+             + 0.004×throttle² + ...
+     
+     - throttle_rpm_to_map:
+       MAP = 0.701×throttle + 0.001×rpm + ...
+  
+  2. **Constantes de Transição:**
+     - throttle_tau: 0.3s
+     - rpm_accel_tau: 1.0s
+     - speed_tau: 3.0s
+     - coolant_warmup_tau: 300s
+  
+  3. **Perfis de Ruído Gaussiano:**
+     - rpm: σ = 15
+     - speed: σ = 0.5
+     - coolant_temp: σ = 0.3
+  
+  4. **Modelo de Câmbio:**
+     - gear_ratios: [3.6, 2.0, 1.4, 1.0, 0.8]
+     - shift_points: [0, 15, 30, 50, 80] km/h
+  
+  5. **Modelo Térmico:**
+     - warmup_rate: 0.05°C/s
+     - target: 90°C
+end note
+
+@enduml

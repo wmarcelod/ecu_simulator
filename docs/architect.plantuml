@@ -1,0 +1,67 @@
+@startuml system_architecture
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam componentStyle rectangle
+
+title Arquitetura Geral — Simulador ECU Web-Based
+
+package "Navegador Web (Chrome/Edge)" as Browser {
+  package "Frontend React" as FE {
+    [Dashboard] as dash
+    [SensorPanel] as sensor
+    [Terminal ELM327] as term
+    [DTCPanel] as dtc
+    [PlaybackPanel] as play
+    [SchematicPanel] as schem
+    [ThemeProvider] as theme
+  }
+
+  package "Core Engine" as Core {
+    [ECU Simulator\n(ecu-simulator.ts)] as ecu
+    [DBC Parser\n(dbc-parser.ts)] as dbc
+    [ML Model\n(sensor_correlation_model.json)] as ml
+  }
+
+  package "Communication" as Comm {
+    [Serial Connection\n(serial-connection.ts)\nWeb Serial API] as serial
+  }
+}
+
+package "Hardware" as HW {
+  [Arduino Uno/Nano\n(arduino_ecu_simulator.ino)] as arduino
+  [MCP2515\nCAN Controller\n(SPI Interface)] as mcp
+  [TJA1050/MCP2551\nCAN Transceiver] as xcvr
+}
+
+cloud "CAN Bus\n(ISO 11898)" as canbus {
+  [CANH / CANL\n500 kbps\n120Ω terminação] as canphy
+}
+
+package "Dispositivos Externos" as External {
+  [Scanner OBD-II\n(ELM327/STN1110)] as scanner
+  [ECU Real\n(veículo)] as realecu
+  [Ferramenta de\nDiagnóstico] as diag
+}
+
+' Conexões Frontend → Core
+dash --> ecu : Estado dos sensores\nControle de cenários
+sensor --> ecu : Modo AUTO/MANUAL\nValores manuais
+term --> ecu : Comandos ELM327\nRespostas OBD-II
+dtc --> ecu : Gerenciar DTCs
+play --> ecu : Logs de sessão
+dbc --> ecu : Perfis de veículos\n(DBC → VehicleProfile)
+ml --> ecu : Coeficientes de regressão\nCorrelações\nRegras físicas
+
+' Conexões Core → Hardware
+ecu --> serial : Dados serializados\n(JSON/texto)
+serial --> arduino : USB Serial\n115200 bps
+arduino --> mcp : SPI Bus\n(SCK, MOSI, MISO, CS)
+mcp --> xcvr : CAN frames\n(TX/RX)
+xcvr --> canphy : Sinal diferencial\nCANH/CANL
+
+' Conexões externas
+canphy --> scanner : OBD-II Request\n(0x7DF)
+canphy --> realecu : CAN Messages
+canphy --> diag : Diagnóstico
+
+@enduml

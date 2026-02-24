@@ -1,0 +1,53 @@
+@startuml can_bus_topology
+!theme plain
+skinparam backgroundColor #FEFEFE
+
+title Topologia do Barramento CAN — Simulador ECU
+
+rectangle "Nó 1: Simulador ECU\n(Arduino + MCP2515)" as node1 {
+  rectangle "Arduino Uno" as ard1
+  rectangle "MCP2515" as mcp1
+  rectangle "TJA1050" as xcvr1
+  ard1 -right-> mcp1 : SPI
+  mcp1 -right-> xcvr1 : TX/RX
+}
+
+rectangle "Nó 2: Scanner OBD-II\n(ELM327 / Ferramenta)" as node2 {
+  rectangle "ELM327" as elm
+  rectangle "Transceiver" as xcvr2
+  elm -right-> xcvr2 : CAN
+}
+
+rectangle "Nó 3: ECU Real\n(opcional)" as node3 {
+  rectangle "ECU Motor" as ecum
+  rectangle "Transceiver" as xcvr3
+  ecum -right-> xcvr3 : CAN
+}
+
+rectangle "120Ω" as term1
+rectangle "120Ω" as term2
+
+xcvr1 -down- term1
+term1 -right-[#blue,bold] xcvr2 : **CANH / CANL**
+xcvr2 -right- term2
+term2 -right- xcvr3
+
+note bottom of term1
+  Resistor de terminação
+  no início do barramento
+end note
+
+note bottom of term2
+  Resistor de terminação
+  no final do barramento
+end note
+
+note as N1
+  **Barramento CAN 2.0A**
+  - Velocidade: 500 kbps (ISO 15765-4)
+  - 2 fios: CANH (dominante ~3.5V) / CANL (dominante ~1.5V)
+  - Comprimento máx: ~40m a 500kbps
+  - Terminação: 120Ω em cada extremidade
+  - Arbitragem: CSMA/CD + prioridade por ID
+end note
+@enduml
