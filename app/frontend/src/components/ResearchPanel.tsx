@@ -29,7 +29,7 @@ function MarkdownRenderer({ content, theme }: { content: string; theme: string }
 
   function renderInline(text: string): (string | JSX.Element)[] {
     const parts: (string | JSX.Element)[] = [];
-    const regex = /(\*\*(.+?)\*\*)|(`(.+?)`)|(\[(.+?)\]\((.+?)\))/g;
+    const regex = /(\*\*(.+?)\*\*)|(`(.+?)`)|(\\[(.+?)\\]\((.+?)\))/g;
     let lastIndex = 0;
     let match: RegExpExecArray | null;
     let inlineKey = 0;
@@ -211,7 +211,7 @@ The primary motivation behind the development of this system is to significantly
 This web-based ECU simulator is distinguished by several high-level features:
 - **ELM327 Command Compatibility:** Robust compatibility with ELM327 commands ensures the simulator can accurately interpret and respond to standard OBD-II diagnostic requests, mirroring the behavior of a genuine ECU.
 - **Support for Various Car Models:** The architecture supports the seamless inclusion of diverse car models with specific characteristics and unique behaviors.
-- **Integration with Physical Hardware:** Arduino microcontroller connected via Web Serial API, interfaced with MCP2515 CAN controller and OBD-II port.
+- **Integration with Physical Hardware:** Arduino microcontroller operating as a **CAN gateway** via Web Serial API, interfaced with MCP2515 CAN controller and OBD-II port. The Arduino relays raw CAN frames using a CSV serial protocol.
 - **Advanced Sensor Behavior Simulation:** Detailed modeling of sensor inputs and their corresponding output signals.
 - **Historical ECU Recording Data Playback:** Upload and replay real ECU log files for analysis and debugging.
 
@@ -274,7 +274,41 @@ The simulator features distinct profiles for each car model specifying:
 
 ---
 
-## Hardware and Browser Integration: Bridging Physical and Digital
+## Hardware Integration: Arduino CAN Gateway
+
+### Architecture Overview
+
+The hardware integration uses a **CAN gateway** architecture. The Arduino does NOT run ECU simulation logic — it acts purely as a bridge between the web application and the physical CAN bus. All OBD-II intelligence resides in the web application.
+
+### Communication Protocol (CSV Serial)
+
+The Arduino firmware communicates via a simple CSV-based serial protocol at 115200 baud:
+
+**Sending CAN frames (Web App → Arduino → CAN Bus):**
+\`\`\`
+TX,<ID_HEX>,<EXT_0or1>,<DATA_HEX>
+Example: TX,7DF,0,02010C0000000000
+\`\`\`
+
+**Receiving CAN frames (CAN Bus → Arduino → Web App):**
+\`\`\`
+RX,<ID_HEX>,<EXT_0or1>,<DLC>,<DATA_HEX>,<TIMESTAMP_MS>
+Example: RX,7E8,0,8,0641010C2EE05555,12345
+\`\`\`
+
+**Info messages:**
+\`\`\`
+INFO,<MESSAGE>
+Example: INFO,BOOT_OK
+\`\`\`
+
+**Protocol switching (CAN bus speed):**
+\`\`\`
+PROTO,<N>
+6 or 7 = 500 kbps (default)
+8 or 9 = 250 kbps
+Response: INFO,PROTO,OK or INFO,PROTO,FAIL
+\`\`\`
 
 ### MCP2515 Controller and OBD-II CAN Communication
 
@@ -292,42 +326,37 @@ Arduino boards lack native CAN interfaces, requiring external controllers like t
 
 OBD-II connections: Pin 6 (CAN_H) → CANH, Pin 14 (CAN_L) → CANL, Pin 4/5 (GND) → Arduino GND.
 
-### Arduino Software Libraries
+### Arduino Firmware Library
 
-- **\`autowp/arduino-mcp2515\`**: CAN V2.0B with 11-bit and 29-bit frames
-- **\`mcp_can\`**: Essential functions for sending/receiving CAN messages
-- **\`sandeepmistry/arduino-OBD2\`**: API for OBD-II specific interactions
+- **\`mcp_can\`** by Seeed Studio: Primary library for CAN communication via MCP2515
+- Crystal: 8 MHz (\`MCP_8MHZ\`)
+- Default speed: CAN 500 kbps (\`CAN_500KBPS\`)
 
 ### Web Serial API: The Browser-Arduino Bridge
 
 The Web Serial API enables direct communication with serial devices from the browser:
 
 \`\`\`javascript
-if ("serial" in navigator) {
-  // The Web Serial API is supported.
-}
-
-// Request port access (requires user gesture)
+// Connect to Arduino CAN Gateway
 const port = await navigator.serial.requestPort();
 await port.open({ baudRate: 115200 });
 
-// Reading data
-const textDecoder = new TextDecoderStream();
-port.readable.pipeTo(textDecoder.writable);
-const reader = textDecoder.readable.getReader();
+// Send OBD-II request for RPM (PID 0x0C)
+writer.write("TX,7DF,0,02010C0000000000\\n");
 
-// Writing data
-const encoder = new TextEncoderStream();
-encoder.readable.pipeTo(port.writable);
-const writer = encoder.writable.getWriter();
-await writer.write("ATZ\\r");
+// Receive response: RX,7E8,0,8,04410C2EE0555555,12345
+// Parse: ID=0x7E8, Data=04 41 0C 2E E0 → RPM = (0x2E*256+0xE0)/4 = 3000
 \`\`\`
 
-### Data Exchange Mechanisms
+### Data Flow
 
-1. **Custom Delimited Strings**: Fields separated by delimiters, terminated by end-markers
-2. **JSON**: Structured format using ArduinoJSON library
-3. **Binary Data**: Raw bytes for maximum efficiency
+1. Web app constructs OBD-II CAN frame (e.g., Mode 01 PID 0C for RPM)
+2. Sends via serial: \`TX,7DF,0,02010C0000000000\\n\`
+3. Arduino parses CSV, sends raw CAN frame via MCP2515
+4. Arduino echoes back: \`TX,7DF,0,8,02010C0000000000,<timestamp>\`
+5. ECU on CAN bus responds
+6. Arduino receives CAN frame, sends: \`RX,7E8,0,8,04410C2EE0555555,<timestamp>\`
+7. Web app parses response and decodes OBD-II data
 
 ---
 
@@ -368,8 +397,9 @@ The system parses data according to format, maps to virtual ECU parameters, and 
 ### High-Level Architectural Overview
 
 - **Frontend**: Web browser UI with Web Serial API integration
-- **Backend**: ECU simulation logic, car model database, sensor data generation
-- **Hardware Interface**: Arduino + MCP2515 CAN controller + OBD-II port
+- **Backend**: ECU simulation logic runs entirely in the browser (TypeScript)
+- **Hardware Interface**: Arduino CAN Gateway + MCP2515 CAN controller + OBD-II port
+- **Protocol**: CSV serial (TX/RX/INFO/PROTO) between browser and Arduino
 
 ### Potential Future Enhancements
 
@@ -474,7 +504,7 @@ A web-based Engine Control Unit (ECU) simulator designed to replicate automotive
 ### Key Features
 - **ELM327 Command Compatibility**: Full AT command set and OBD-II protocol emulation
 - **Multi-Vehicle Support**: Modular profiles for sedan, SUV, sport, and DBC-imported vehicles
-- **Hardware Integration**: Arduino + MCP2515 CAN controller via Web Serial API
+- **Hardware Integration**: Arduino CAN Gateway + MCP2515 via Web Serial API (CSV protocol)
 - **ML-Enhanced Simulation**: Trained regression models for sensor correlation (R² > 0.97)
 - **Cybersecurity Testing**: Support for spoofing, replay, fuzzing, and DoS attack simulation
 
@@ -489,8 +519,28 @@ A web-based Engine Control Unit (ECU) simulator designed to replicate automotive
 | Simulation Engine | TypeScript (browser) | Physics-based ECU model |
 | ML Model | JSON (pre-trained in Python) | Sensor correlation parameters |
 | DBC Parser | TypeScript (browser) | Vehicle profile import |
-| Serial Bridge | Web Serial API | Arduino communication |
-| Hardware | Arduino + MCP2515 + TJA1050 | CAN bus transceiver |
+| Serial Bridge | Web Serial API + CSV Protocol | Arduino CAN Gateway communication |
+| Hardware | Arduino + MCP2515 + TJA1050 | CAN bus gateway (raw frame relay) |
+
+### Hardware Communication Protocol
+
+The Arduino operates as a **raw CAN gateway** — it does NOT simulate ECU logic. All OBD-II intelligence resides in the web application.
+
+**Serial CSV Protocol (115200 baud):**
+\`\`\`
+Send:    TX,<ID_HEX>,<EXT_0or1>,<DATA_HEX>\\n
+Receive: RX,<ID_HEX>,<EXT_0or1>,<DLC>,<DATA_HEX>,<TIMESTAMP_MS>\\n
+Info:    INFO,<MESSAGE>\\n
+Speed:   PROTO,<6|7|8|9>\\n  (6/7=500kbps, 8/9=250kbps)
+\`\`\`
+
+**Example OBD-II RPM Request:**
+\`\`\`
+Web App sends:  TX,7DF,0,02010C0000000000
+Arduino echoes: TX,7DF,0,8,02010C0000000000,5432
+ECU responds:   RX,7E8,0,8,04410C2EE0555555,5435
+Web App decodes: RPM = (0x2E*256 + 0xE0) / 4 = 3000
+\`\`\`
 
 ### Simulation Engine Design
 
@@ -619,7 +669,7 @@ Attack (MANUAL on RPM):
 
 ## Hardware Schematic
 
-### Arduino ↔ MCP2515 Wiring
+### Arduino CAN Gateway ↔ MCP2515 Wiring
 | Arduino Uno | Pin | MCP2515 | Function | Protocol |
 |-------------|-----|---------|----------|----------|
 | D13 | 13 | SCK | Serial Clock | SPI |
@@ -636,6 +686,13 @@ Attack (MANUAL on RPM):
 | CANH | Pin 6 | CAN High |
 | CANL | Pin 14 | CAN Low |
 | GND | Pin 4/5 | Ground |
+
+### Firmware Details
+- Library: \`mcp_can\` by Seeed Studio
+- Crystal: 8 MHz (\`MCP_8MHZ\`)
+- Default CAN speed: 500 kbps
+- Serial: 115200 baud
+- Protocol: CSV line-based (TX/RX/INFO/PROTO)
 
 ---
 
@@ -779,7 +836,7 @@ O modelo de correlação captura as interdependências físicas entre sensores a
 // ── System Architecture ──────────────────────────────────────
 const SYSTEM_ARCHITECTURE = `# Arquitetura do Sistema — Simulador ECU Web-Based
 **Autor:** Marcelo Duchene
-**Versão:** 2.0
+**Versão:** 3.0
 
 ---
 
@@ -794,9 +851,19 @@ O Simulador ECU Web-Based é uma plataforma para simulação de ECUs automotivas
 | ECU Simulator Engine | TypeScript (browser) | Motor de simulação com modelo físico |
 | ML Correlation Model | JSON (pré-treinado em Python) | Parâmetros de correlação |
 | DBC Parser | TypeScript (browser) | Parser de arquivos DBC |
-| Web Serial Bridge | Web Serial API | Comunicação serial com Arduino |
-| Arduino Firmware | C++ (Arduino IDE) | Controlador de hardware CAN |
+| Web Serial Bridge | Web Serial API + CSV Protocol | Comunicação serial com Arduino CAN Gateway |
+| Arduino Firmware | C++ (Arduino IDE) | Gateway CAN raw (mcp_can library) |
 | MCP2515 + TJA1050 | Hardware SPI | Transceiver CAN bus |
+
+### 1.2 Arquitetura de Hardware
+
+O Arduino opera como um **CAN Gateway raw** — ele NÃO executa lógica de simulação ECU. Toda a inteligência OBD-II reside na aplicação web.
+
+**Protocolo Serial CSV (115200 baud):**
+- **Enviar frame CAN:** \`TX,<ID_HEX>,<EXT_0or1>,<DATA_HEX>\\n\`
+- **Receber frame CAN:** \`RX,<ID_HEX>,<EXT_0or1>,<DLC>,<DATA_HEX>,<TIMESTAMP>\\n\`
+- **Mensagem info:** \`INFO,<MSG>\\n\`
+- **Trocar velocidade CAN:** \`PROTO,<N>\\n\` (6/7=500kbps, 8/9=250kbps)
 
 ---
 
@@ -816,24 +883,17 @@ O Simulador ECU Web-Based é uma plataforma para simulação de ECUs automotivas
 
 ## 3. Formato de Frame CAN
 
-**Request (Scanner → ECU):**
+**Request (Scanner → ECU) via CAN Gateway:**
 \`\`\`
-CAN ID: 0x7DF (broadcast) ou 0x7E0 (físico)
-DLC: 8
-Data: [NumBytes] [Mode] [PID] [0x55] [0x55] [0x55] [0x55] [0x55]
-
-Exemplo — Request RPM:
-0x7DF [02] [01] [0C] [55] [55] [55] [55] [55]
+Web App envia serial: TX,7DF,0,02010C0000000000
+Arduino transmite CAN: ID=0x7DF, DLC=8, Data=[02][01][0C][00][00][00][00][00]
 \`\`\`
 
-**Response (ECU → Scanner):**
+**Response (ECU → Scanner) via CAN Gateway:**
 \`\`\`
-CAN ID: 0x7E8
-DLC: 8
-Data: [NumBytes] [Mode+0x40] [PID] [DataA] [DataB] ... [0x55 padding]
-
-Exemplo — Response RPM = 3000:
-0x7E8 [04] [41] [0C] [2E] [E0] [55] [55] [55]
+Arduino recebe CAN: ID=0x7E8, DLC=8, Data=[04][41][0C][2E][E0][55][55][55]
+Arduino envia serial: RX,7E8,0,8,04410C2EE0555555,12345
+Web App decodifica: RPM = (0x2E*256 + 0xE0) / 4 = 3000
 \`\`\`
 
 ---
@@ -874,7 +934,7 @@ coolant_temp ↔ fuel_level: r = -0.669
 
 ---
 
-## 6. Pinagem Arduino ↔ MCP2515
+## 6. Pinagem Arduino CAN Gateway ↔ MCP2515
 | Arduino Uno | Pino | MCP2515 | Função | Protocolo |
 |-------------|------|---------|--------|-----------|
 | D13 | 13 | SCK | Serial Clock | SPI |
@@ -885,13 +945,22 @@ coolant_temp ↔ fuel_level: r = -0.669
 | 5V | — | VCC | Alimentação | Power |
 | GND | — | GND | Terra | Power |
 
+### Firmware Arduino
+- **Biblioteca:** \`mcp_can\` by Seeed Studio
+- **Crystal:** 8 MHz (\`MCP_8MHZ\`)
+- **CAN Speed padrão:** 500 kbps (\`CAN_500KBPS\`)
+- **Serial:** 115200 baud
+- **Protocolo:** CSV line-based (TX/RX/INFO/PROTO)
+- **Funcionalidade:** Gateway CAN raw — relay de frames entre serial e barramento CAN
+
 ---
 
 ## 7. Estrutura de Arquivos
 \`\`\`
 /workspace/
 ├── app/frontend/
-│   ├── public/arduino_ecu_simulator.ino
+│   ├── public/arduino_ecu_simulator.ino  (CAN Gateway firmware)
+│   ├── public/web_ecu_simulator_design.html
 │   ├── src/
 │   │   ├── components/ (Dashboard, SensorPanel, Terminal, DTCPanel, PlaybackPanel, SchematicPanel, ResearchPanel)
 │   │   ├── lib/ (ecu-simulator, serial-connection, dbc-parser, theme-context)
@@ -984,6 +1053,21 @@ export default function ResearchPanel() {
               </div>
             </button>
           ))}
+          {/* External Design Page Link */}
+          <a
+            href="/web_ecu_simulator_design.html"
+            target="_blank"
+            rel="noopener noreferrer"
+            className={`flex items-center gap-2 px-3 py-2 rounded border ${border} text-left transition-colors ${hoverBg} ${textMuted}`}
+          >
+            <span className="text-[16px]">🌐</span>
+            <div className="min-w-0">
+              <div className={`text-[11px] font-mono font-semibold truncate ${textLabel}`}>
+                Design Page (HTML)
+              </div>
+              <div className={`text-[9px] ${textMuted} truncate`}>Página visual do design do simulador</div>
+            </div>
+          </a>
         </div>
       </div>
 

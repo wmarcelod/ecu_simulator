@@ -71,6 +71,12 @@ export default function IndexPage() {
           <div className={`h-3 w-px ${theme === 'dark' ? 'bg-[#1e293b]' : 'bg-gray-200'} mx-1`} />
           <span className={`text-[11px] ${textMuted} font-mono`}>ELM327 / OBD-II Protocol Emulator</span>
           <div className="ml-auto flex items-center gap-3">
+            <a
+              href="/blog/"
+              className={`text-[10px] font-mono ${textAccent} hover:underline hidden sm:inline`}
+            >
+              Blog
+            </a>
             <span className={`text-[10px] ${textMuted} font-mono hidden sm:inline`}>Desenvolvido por Marcelo Duchene</span>
             {/* Theme Toggle */}
             <button

@@ -34,7 +34,7 @@ export default function SchematicPanel() {
           <span className={`text-[11px] font-mono ${textLabel} uppercase tracking-widest`}>Arduino + MCP2515 Wiring Schematic</span>
         </div>
         <p className={`text-[10px] font-mono ${textMuted}`}>
-          Connection diagram for the ECU Simulator hardware. Arduino Uno/Nano communicates with MCP2515 CAN controller via SPI bus.
+          Connection diagram for the CAN Gateway hardware. Arduino Uno/Nano communicates with MCP2515 CAN controller via SPI bus. The Arduino acts as a raw CAN gateway — OBD-II frames are built by the web app and relayed via CSV serial protocol.
         </p>
       </div>
 
@@ -162,11 +162,14 @@ export default function SchematicPanel() {
           <span className={`text-[10px] font-mono ${textLabel} uppercase tracking-widest`}>Important Notes</span>
         </div>
         <ul className={`text-[10px] font-mono ${textMuted} space-y-1 list-disc list-inside`}>
-          <li>MCP2515 module must include CAN transceiver (TJA1050 or MCP2551)</li>
-          <li>Crystal oscillator on MCP2515: 8 MHz (set MCP_8MHZ in code)</li>
-          <li>CAN bus speed: 500 kbps (ISO 15765-4 OBD-II standard)</li>
+          <li><strong className={t('text-slate-200', 'text-gray-800', theme)}>Arduino operates as a CAN Gateway</strong> — raw CAN frame relay, not an ECU simulator</li>
+          <li>Serial CSV protocol: <code className={`${t('bg-[#1e293b]', 'bg-gray-100', theme)} px-1 rounded text-[10px]`}>TX,ID,EXT,DATA</code> / <code className={`${t('bg-[#1e293b]', 'bg-gray-100', theme)} px-1 rounded text-[10px]`}>RX,ID,EXT,DLC,DATA,TS</code> / <code className={`${t('bg-[#1e293b]', 'bg-gray-100', theme)} px-1 rounded text-[10px]`}>INFO,MSG</code> / <code className={`${t('bg-[#1e293b]', 'bg-gray-100', theme)} px-1 rounded text-[10px]`}>PROTO,N</code></li>
+          <li>OBD-II commands are constructed by the web app and sent as raw CAN frames via serial</li>
+          <li>Crystal oscillator on MCP2515: 8 MHz (set MCP_8MHZ in firmware)</li>
+          <li>Default CAN speed: 500 kbps — switchable via <code className={`${t('bg-[#1e293b]', 'bg-gray-100', theme)} px-1 rounded text-[10px]`}>PROTO</code> command (6/7 = 500kbps, 8/9 = 250kbps)</li>
           <li>Serial baud rate: 115200 bps (for Web Serial API communication)</li>
-          <li>Install library: mcp_can by Seeed Studio (Arduino Library Manager)</li>
+          <li>Install library: <strong className={t('text-slate-200', 'text-gray-800', theme)}>mcp_can</strong> by Seeed Studio (Arduino Library Manager)</li>
+          <li>MCP2515 module must include CAN transceiver (TJA1050 or MCP2551)</li>
           <li>Optional: 120Ω termination resistor between CANH and CANL</li>
           <li>Power: Arduino can be powered via USB or external 7-12V supply</li>
         </ul>
