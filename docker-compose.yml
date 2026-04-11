@@ -5,31 +5,30 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.backend
-    ports:
-      - "8000:8000"
     environment:
       NODE_ENV: ${NODE_ENV:-production}
       PORT: 8000
       HOST: 0.0.0.0
     volumes:
-      - ./data:/app/data
+      - backend-data:/app/data
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8000/api/health"]
       interval: 30s
       timeout: 3s
       retries: 3
       start_period: 10s
+    networks:
+      - dokploy-network
+      - internal
 
   frontend:
     build:
       context: .
       dockerfile: Dockerfile
-    ports:
-      - "3000:80"
     environment:
-      VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000}
-      VITE_WS_URL: ${VITE_WS_URL:-ws://localhost:8000/ws}
+      VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api}
+      VITE_WS_URL: ${VITE_WS_URL:-wss://ecu.marcelod.com.br/ws}
     depends_on:
       backend:
         condition: service_healthy
@@ -40,3 +39,21 @@ services:
       timeout: 3s
       retries: 3
       start_period: 40s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.ecu-simulator.rule=Host(`ecu.marcelod.com.br`)"
+      - "traefik.http.routers.ecu-simulator.entrypoints=websecure"
+      - "traefik.http.routers.ecu-simulator.tls.certresolver=letsencrypt"
+      - "traefik.http.services.ecu-simulator.loadbalancer.server.port=80"
+    networks:
+      - dokploy-network
+      - internal
+
+volumes:
+  backend-data:
+
+networks:
+  dokploy-network:
+    external: true
+  internal:
+    driver: bridge

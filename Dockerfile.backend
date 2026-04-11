@@ -1,12 +1,12 @@
-FROM node:20-alpine
+FROM node:20-alpine AS builder
 
 WORKDIR /app
 
 # Copy backend files
-COPY app/backend/package.json app/backend/package-lock.json* app/backend/pnpm-lock.yaml* ./
+COPY app/backend/package.json app/backend/package-lock.json* ./
 
-# Install dependencies
-RUN npm install --production
+# Install ALL dependencies (including dev for TypeScript build)
+RUN npm install
 
 # Copy backend source
 COPY app/backend/src ./src
@@ -14,6 +14,16 @@ COPY app/backend/tsconfig.json ./
 
 # Build TypeScript
 RUN npm run build
+
+# Production stage
+FROM node:20-alpine
+
+WORKDIR /app
+
+COPY --from=builder /app/package.json ./
+RUN npm install --production
+
+COPY --from=builder /app/dist ./dist
 
 # Create data directory
 RUN mkdir -p /app/data
@@ -23,7 +33,7 @@ EXPOSE 8000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:8000/api/health', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})"
+  CMD wget --quiet --tries=1 --spider http://localhost:8000/api/health || exit 1
 
 # Start the server
-CMD ["npm", "start"]
+CMD ["node", "dist/index.js"]
