@@ -1,0 +1,275 @@
+import { useState, useEffect, useCallback } from 'react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ECUSimulator } from '@/lib/ecu-simulator';
+import { useTheme, t } from '@/lib/theme-context';
+
+interface MultiECUPanelProps {
+  simulator: ECUSimulator;
+}
+
+const ECU_CONFIG = [
+  { name: 'Engine', address: 0x7E0, responseId: 0x7E8, color: '#4ade80', icon: '⚙' },
+  { name: 'Transmission', address: 0x7E1, responseId: 0x7E9, color: '#38bdf8', icon: '⚙' },
+  { name: 'ABS', address: 0x7E2, responseId: 0x7EA, color: '#f59e0b', icon: '⚙' },
+];
+
+const DTC_DESC: Record<string, string> = {
+  P0100: 'MAF Circuit Malfunction',
+  P0101: 'MAF Circuit Range/Performance',
+  P0110: 'IAT Circuit Malfunction',
+  P0115: 'ECT Circuit Malfunction',
+  P0120: 'TPS A Circuit Malfunction',
+  P0128: 'Thermostat Below Regulating Temp',
+  P0130: 'O2 Sensor Circuit (B1S1)',
+  P0131: 'O2 Sensor Low Voltage (B1S1)',
+  P0171: 'System Too Lean (Bank 1)',
+  P0172: 'System Too Rich (Bank 1)',
+  P0300: 'Random/Multiple Cylinder Misfire',
+  P0301: 'Cylinder 1 Misfire',
+  P0302: 'Cylinder 2 Misfire',
+  P0420: 'Catalyst Efficiency Below Threshold (B1)',
+  P0440: 'EVAP System Malfunction',
+  P0442: 'EVAP System Leak (Small)',
+  P0455: 'EVAP System Leak (Large)',
+  P0500: 'VSS Malfunction',
+  P0505: 'Idle Control System Malfunction',
+  P0600: 'Serial Communication Link Error',
+  P0700: 'Transmission Control System Malfunction',
+  C0035: 'ABS Sensor Circuit High',
+  C0036: 'ABS Sensor Circuit Low',
+  C0040: 'ABS Sensor Circuit Open',
+  C0100: 'ABS Wheel Speed Sensor Malfunction',
+};
+
+const COMMON_DTCS = {
+  engine: ['P0100', 'P0171', 'P0172', 'P0300', 'P0301', 'P0420', 'P0442', 'P0128', 'P0505', 'P0500'],
+  transmission: ['P0700', 'P0740', 'P0755', 'P0808'],
+  abs: ['C0035', 'C0036', 'C0040', 'C0100', 'C0200'],
+};
+
+export default function MultiECUPanel({ simulator }: MultiECUPanelProps) {
+  const { theme } = useTheme();
+  const [ecuStates, setEcuStates] = useState<Record<number, { stored: string[]; pending: string[]; permanent: string[] }>>({});
+  const [newDTC, setNewDTC] = useState('');
+  const [addType, setAddType] = useState<'stored' | 'pending' | 'permanent'>('stored');
+  const [selectedECU, setSelectedECU] = useState(0x7E0);
+  const [transmissionState, setTransmissionState] = useState(simulator.getTransmissionState());
+  const [absState, setAbsState] = useState(simulator.getABSState());
+
+  const refresh = useCallback(() => {
+    const newStates: Record<number, { stored: string[]; pending: string[]; permanent: string[] }> = {};
+    for (const ecu of ECU_CONFIG) {
+      newStates[ecu.address] = simulator.getECUDTCs(ecu.address);
+    }
+    setEcuStates(newStates);
+    setTransmissionState(simulator.getTransmissionState());
+    setAbsState(simulator.getABSState());
+  }, [simulator]);
+
+  useEffect(() => {
+    refresh();
+    const iv = setInterval(refresh, 500);
+    return () => clearInterval(iv);
+  }, [refresh]);
+
+  const handleAdd = () => {
+    const code = newDTC.trim().toUpperCase();
+    if (/^[PCBU|C][0-9A-F]{4}$/.test(code)) {
+      simulator.addECUDTC(selectedECU, code, addType);
+      setNewDTC('');
+      refresh();
+    }
+  };
+
+  const handleRemove = (ecuAddress: number, code: string, type: 'stored' | 'pending' | 'permanent') => {
+    simulator.removeECUDTC(ecuAddress, code, type);
+    refresh();
+  };
+
+  const bg = t('bg-[#111827]', 'bg-white', theme);
+  const border = t('border-[#1e293b]', 'border-gray-200', theme);
+  const textMuted = t('text-slate-500', 'text-gray-500', theme);
+  const textLabel = t('text-slate-400', 'text-gray-600', theme);
+
+  const renderDTCList = (dtcs: string[], type: 'stored' | 'pending' | 'permanent', label: string, mode: string, color: string) => (
+    <div className={`${bg} border ${border} rounded-md`}>
+      <div className="px-3 py-1.5 border-b border-[#1e293b] flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: color, opacity: 0.8 }} />
+          <span className="text-[10px] font-mono uppercase tracking-widest" style={{ color }}>{label}</span>
+          <span className="text-[10px] font-mono text-slate-500">({dtcs.length})</span>
+        </div>
+        <span className="text-[9px] font-mono text-slate-600">MODE {mode}</span>
+      </div>
+      {dtcs.length === 0 ? (
+        <div className="px-3 py-3 text-[10px] font-mono text-slate-600 text-center">NO CODES</div>
+      ) : (
+        <div>
+          {dtcs.map((dtc) => (
+            <div key={`${selectedECU}-${type}-${dtc}`} className="flex items-center justify-between px-3 py-1.5 border-b border-[#1e293b]/50 last:border-b-0 group">
+              <div className="flex items-center gap-3">
+                <span className="text-[11px] font-mono font-semibold" style={{ color }}>{dtc}</span>
+                <span className="text-[10px] font-mono text-slate-400">{DTC_DESC[dtc] || 'Unknown'}</span>
+              </div>
+              <button
+                className="text-[9px] font-mono text-slate-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                onClick={() => handleRemove(selectedECU, dtc, type)}
+              >
+                ✕
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
+  const ecuConfig = ECU_CONFIG.find((e) => e.address === selectedECU);
+  const ecuDtcs = ecuStates[selectedECU] || { stored: [], pending: [], permanent: [] };
+
+  return (
+    <div className="space-y-3">
+      {/* ECU Selector */}
+      <div className={`${bg} border ${border} rounded-md p-3`}>
+        <div className="flex items-center gap-2 mb-3">
+          <div className="w-1 h-3 bg-violet-500/70 rounded-full" />
+          <span className={`text-[10px] font-mono ${textLabel} uppercase tracking-widest`}>Multi-ECU Status</span>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          {ECU_CONFIG.map((ecu) => {
+            const dtcs = ecuStates[ecu.address];
+            const totalCodes = (dtcs?.stored.length ?? 0) + (dtcs?.pending.length ?? 0) + (dtcs?.permanent.length ?? 0);
+            return (
+              <button
+                key={ecu.address}
+                onClick={() => setSelectedECU(ecu.address)}
+                className={`
+                  h-12 rounded border transition-all p-2 flex flex-col items-start gap-0.5
+                  ${selectedECU === ecu.address
+                    ? `border-white/50 ${theme === 'dark' ? 'bg-[#1e293b]' : 'bg-gray-100'}`
+                    : `${border} ${theme === 'dark' ? 'bg-[#0f172a] hover:bg-[#1e293b]' : 'bg-gray-50 hover:bg-gray-100'}`
+                  }
+                `}
+              >
+                <div className="text-[10px] font-mono font-semibold" style={{ color: ecu.color }}>
+                  {ecu.icon} {ecu.name}
+                </div>
+                <div className="text-[9px] font-mono text-slate-500">
+                  ID: 0x{ecu.address.toString(16).toUpperCase()} {totalCodes > 0 && `• ${totalCodes} code(s)`}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ECU-specific state info */}
+      {selectedECU === 0x7E1 && (
+        <div className={`${bg} border ${border} rounded-md p-3`}>
+          <div className="text-[9px] font-mono uppercase tracking-widest text-slate-500 mb-2">Transmission State</div>
+          <div className="grid grid-cols-3 gap-2 text-[10px]">
+            <div className="border border-[#1e293b] rounded p-2">
+              <div className="text-slate-500 font-mono">Gear</div>
+              <div className="text-cyan-400 font-mono font-semibold text-[11px]">{transmissionState.gear}</div>
+            </div>
+            <div className="border border-[#1e293b] rounded p-2">
+              <div className="text-slate-500 font-mono">Temp</div>
+              <div className="text-cyan-400 font-mono font-semibold text-[11px]">{transmissionState.temperature}°C</div>
+            </div>
+            <div className="border border-[#1e293b] rounded p-2">
+              <div className="text-slate-500 font-mono">Shifts</div>
+              <div className="text-cyan-400 font-mono font-semibold text-[11px]">{transmissionState.shiftCount}</div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {selectedECU === 0x7E2 && (
+        <div className={`${bg} border ${border} rounded-md p-3`}>
+          <div className="text-[9px] font-mono uppercase tracking-widest text-slate-500 mb-2">ABS State</div>
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-[10px]">
+            <div className="border border-[#1e293b] rounded p-2">
+              <div className="text-slate-500 font-mono text-[8px]">Speed FL</div>
+              <div className="text-amber-400 font-mono font-semibold text-[11px]">{absState.wheelSpeedFL.toFixed(0)} km/h</div>
+            </div>
+            <div className="border border-[#1e293b] rounded p-2">
+              <div className="text-slate-500 font-mono text-[8px]">Speed FR</div>
+              <div className="text-amber-400 font-mono font-semibold text-[11px]">{absState.wheelSpeedFR.toFixed(0)} km/h</div>
+            </div>
+            <div className="border border-[#1e293b] rounded p-2">
+              <div className="text-slate-500 font-mono text-[8px]">Speed RL</div>
+              <div className="text-amber-400 font-mono font-semibold text-[11px]">{absState.wheelSpeedRL.toFixed(0)} km/h</div>
+            </div>
+            <div className="border border-[#1e293b] rounded p-2">
+              <div className="text-slate-500 font-mono text-[8px]">Speed RR</div>
+              <div className="text-amber-400 font-mono font-semibold text-[11px]">{absState.wheelSpeedRR.toFixed(0)} km/h</div>
+            </div>
+            <div className="border border-[#1e293b] rounded p-2">
+              <div className="text-slate-500 font-mono text-[8px]">ABS Active</div>
+              <div className={`font-mono font-semibold text-[11px] ${absState.absActive ? 'text-red-400' : 'text-emerald-400'}`}>
+                {absState.absActive ? 'YES' : 'NO'}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add DTC */}
+      <div className={`${bg} border ${border} rounded-md p-3`}>
+        <div className="flex items-center gap-2 mb-3">
+          <div className="w-1 h-3 bg-emerald-500/70 rounded-full" />
+          <span className={`text-[10px] font-mono ${textLabel} uppercase tracking-widest`}>Add DTC to {ecuConfig?.name}</span>
+        </div>
+        <div className="flex items-center gap-2 mb-3">
+          <Input
+            value={newDTC}
+            onChange={(e) => setNewDTC(e.target.value.toUpperCase())}
+            placeholder={ecuConfig?.name === 'ABS' ? 'C0035' : 'P0300'}
+            className="w-[100px] h-7 bg-[#0f172a] border-[#1e293b] text-emerald-300 font-mono text-[11px] rounded"
+            maxLength={5}
+            onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
+          />
+          <Select value={addType} onValueChange={(v) => setAddType(v as 'stored' | 'pending' | 'permanent')}>
+            <SelectTrigger className="w-[110px] h-7 bg-[#0f172a] border-[#1e293b] text-slate-300 text-[10px] font-mono rounded">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent className="bg-[#1e293b] border-[#334155] rounded">
+              <SelectItem value="stored" className="text-slate-300 text-[10px] font-mono">STORED</SelectItem>
+              <SelectItem value="pending" className="text-slate-300 text-[10px] font-mono">PENDING</SelectItem>
+              <SelectItem value="permanent" className="text-slate-300 text-[10px] font-mono">PERMANENT</SelectItem>
+            </SelectContent>
+          </Select>
+          <button
+            className="h-7 px-3 text-[10px] font-mono uppercase bg-emerald-950/40 border border-emerald-800/40 text-emerald-400 hover:bg-emerald-950/60 rounded"
+            onClick={handleAdd}
+          >
+            + ADD
+          </button>
+        </div>
+        <div className="flex flex-wrap gap-1">
+          {(ecuConfig?.name === 'ABS' ? COMMON_DTCS.abs : ecuConfig?.name === 'Transmission' ? COMMON_DTCS.transmission : COMMON_DTCS.engine).map((dtc) => (
+            <button
+              key={dtc}
+              className="h-5 px-2 text-[9px] font-mono text-slate-500 bg-[#0f172a] border border-[#1e293b] hover:border-emerald-800/40 hover:text-emerald-400 rounded"
+              onClick={() => {
+                simulator.addECUDTC(selectedECU, dtc, addType);
+                refresh();
+              }}
+            >
+              {dtc}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* DTC Lists */}
+      <div className="space-y-3">
+        {renderDTCList(ecuDtcs.stored, 'stored', 'Stored DTCs', '03', '#ef4444')}
+        {renderDTCList(ecuDtcs.pending, 'pending', 'Pending DTCs', '07', '#f59e0b')}
+        {renderDTCList(ecuDtcs.permanent, 'permanent', 'Permanent DTCs', '0A', '#a78bfa')}
+      </div>
+    </div>
+  );
+}

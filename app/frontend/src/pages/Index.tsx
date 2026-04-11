@@ -10,6 +10,10 @@ import PlaybackPanel from '@/components/PlaybackPanel';
 import DTCPanel from '@/components/DTCPanel';
 import SchematicPanel from '@/components/SchematicPanel';
 import ResearchPanel from '@/components/ResearchPanel';
+import DrivingScenarioSelector from '@/components/DrivingScenarioSelector';
+import MultiECUPanel from '@/components/MultiECUPanel';
+import CANFrameMonitor from '@/components/CANFrameMonitor';
+import AttackSimulator from '@/components/AttackSimulator';
 
 function downloadFile(content: string, filename: string, mimeType: string) {
   const blob = new Blob([content], { type: mimeType });
@@ -96,6 +100,10 @@ export default function IndexPage() {
           <TabsList className={`${bgHeader} border ${border} rounded-md mb-3 h-8 gap-0 p-0`}>
             {[
               { value: 'dashboard', label: 'DASHBOARD' },
+              { value: 'driving', label: 'DRIVING' },
+              { value: 'multi-ecu', label: 'MULTI-ECU' },
+              { value: 'can', label: 'CAN MONITOR' },
+              { value: 'attacks', label: 'ATTACKS' },
               { value: 'terminal', label: 'TERMINAL' },
               { value: 'sensors', label: 'SENSORS' },
               { value: 'playback', label: 'PLAYBACK' },
@@ -116,6 +124,10 @@ export default function IndexPage() {
           <TabsContent value="dashboard" className="mt-0">
             <Dashboard simulator={simulatorRef.current} serialStatus={serialStatus} onConnectSerial={handleConnectSerial} onDisconnectSerial={handleDisconnectSerial} onExportLog={handleExportLog} />
           </TabsContent>
+          <TabsContent value="driving" className="mt-0"><DrivingScenarioSelector simulator={simulatorRef.current} /></TabsContent>
+          <TabsContent value="multi-ecu" className="mt-0"><MultiECUPanel simulator={simulatorRef.current} /></TabsContent>
+          <TabsContent value="can" className="mt-0"><CANFrameMonitor simulator={simulatorRef.current} /></TabsContent>
+          <TabsContent value="attacks" className="mt-0"><AttackSimulator simulator={simulatorRef.current} /></TabsContent>
           <TabsContent value="terminal" className="mt-0"><Terminal simulator={simulatorRef.current} /></TabsContent>
           <TabsContent value="sensors" className="mt-0"><SensorPanel simulator={simulatorRef.current} /></TabsContent>
           <TabsContent value="playback" className="mt-0"><PlaybackPanel simulator={simulatorRef.current} /></TabsContent>
