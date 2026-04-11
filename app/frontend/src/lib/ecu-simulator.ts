@@ -51,6 +51,25 @@ export interface SimulatorConfig {
 
 export type SimScenario = 'idle' | 'acceleration' | 'cruise' | 'deceleration';
 
+export type DrivingScenario = 'city' | 'highway' | 'aggressive' | 'eco' | 'idle';
+
+export interface DrivingScenarioProfile {
+  name: string;
+  speedRange: { min: number; max: number };
+  rpmRange: { min: number; max: number };
+  throttleRange: { min: number; max: number };
+  targetRpm: number;
+  transitionRate: 'none' | 'very_slow' | 'slow' | 'fast' | 'instant';
+  gearChangeFrequency: 'none' | 'low' | 'high' | 'very_high';
+  description: string;
+}
+
+export interface CANFrame {
+  id: number;
+  data: Uint8Array;
+  timestamp: number;
+}
+
 // Vehicle Profiles
 const VEHICLE_PROFILES: VehicleProfile[] = [
   {
@@ -1025,6 +1044,51 @@ export class ECUSimulator {
       );
     }
 
+    // ── Update transmission state (simulate gear changes) ──────
+    const currentGear = this.getCurrentGear(this.val('speed'));
+    if (currentGear !== this.transmissionState.gear) {
+      this.transmissionState.gear = currentGear;
+      this.transmissionState.shiftCount++;
+    }
+
+    // ── Update ABS state (wheel speeds sync with vehicle speed) ─
+    const speedMps = this.val('speed') / 3.6; // Convert km/h to m/s
+    const wheelSpeedRpm = (speedMps * 60) / (Math.PI * 0.33); // 0.33m tire radius
+    this.absState.wheelSpeedFL = wheelSpeedRpm;
+    this.absState.wheelSpeedFR = wheelSpeedRpm;
+    this.absState.wheelSpeedRL = wheelSpeedRpm;
+    this.absState.wheelSpeedRR = wheelSpeedRpm;
+
+    // ── Update transmission temperature (thermal model) ────────
+    if (this.val('rpm') > r.rpm.idle * 1.5) {
+      this.transmissionState.temperature = this.approach(
+        this.transmissionState.temperature,
+        85 + (this.val('engineLoad') * 0.3),
+        this.tauTicks(20),
+        0.5,
+      );
+    }
+
+    // ── Generate CAN frames for IDS testing ────────────────────
+    this.generateCANFrames();
+
+    // ── Handle DoS attack simulation ──────────────────────────
+    if (this.dosActive) {
+      const frameIntervalMs = 1000 / this.dosRate;
+      const now = Date.now();
+      if (now - this.lastCanFrameTime < frameIntervalMs) {
+        const dosFrame = new Uint8Array(8);
+        for (let i = 0; i < 8; i++) {
+          dosFrame[i] = Math.floor(Math.random() * 256);
+        }
+        this.canFrames.push({
+          id: this.dosFrameId,
+          data: dosFrame,
+          timestamp: now - this.logStartTime,
+        });
+      }
+    }
+
     this.emitState();
   }
 
@@ -1767,6 +1831,357 @@ export class ECUSimulator {
     }
 
     return frames;
+  }
+
+  // ============================================================
+  // DRIVING SCENARIOS - Predefined driving profiles
+  // ============================================================
+  /**
+   * Driving scenario definitions with realistic patterns
+   */
+  private drivingScenarios: Record<DrivingScenario, DrivingScenarioProfile> = {
+    city: {
+      name: 'City Driving',
+      speedRange: { min: 0, max: 60 },
+      rpmRange: { min: 800, max: 4500 },
+      throttleRange: { min: 0, max: 75 },
+      targetRpm: 2000,
+      transitionRate: 'fast',
+      gearChangeFrequency: 'high',
+      description: 'Low speed, frequent stops, high RPM variation',
+    },
+    highway: {
+      name: 'Highway Cruising',
+      speedRange: { min: 80, max: 130 },
+      rpmRange: { min: 1500, max: 3500 },
+      throttleRange: { min: 15, max: 45 },
+      targetRpm: 2500,
+      transitionRate: 'slow',
+      gearChangeFrequency: 'low',
+      description: 'High speed, steady RPM, minimal gear changes',
+    },
+    aggressive: {
+      name: 'Aggressive Acceleration',
+      speedRange: { min: 0, max: 200 },
+      rpmRange: { min: 2000, max: 7000 },
+      throttleRange: { min: 60, max: 100 },
+      targetRpm: 5500,
+      transitionRate: 'instant',
+      gearChangeFrequency: 'very_high',
+      description: 'High RPM, rapid acceleration/braking',
+    },
+    eco: {
+      name: 'Eco Mode',
+      speedRange: { min: 0, max: 100 },
+      rpmRange: { min: 800, max: 2800 },
+      throttleRange: { min: 0, max: 35 },
+      targetRpm: 1800,
+      transitionRate: 'very_slow',
+      gearChangeFrequency: 'low',
+      description: 'Low RPM, gentle acceleration, early upshifts',
+    },
+    idle: {
+      name: 'Engine Idle',
+      speedRange: { min: 0, max: 0 },
+      rpmRange: { min: 700, max: 900 },
+      throttleRange: { min: 5, max: 15 },
+      targetRpm: 750,
+      transitionRate: 'none',
+      gearChangeFrequency: 'none',
+      description: 'Engine running but not moving',
+    },
+  };
+
+  private currentDrivingScenario: DrivingScenario = 'idle';
+
+  public setDrivingScenario(scenario: DrivingScenario) {
+    if (this.drivingScenarios[scenario]) {
+      this.currentDrivingScenario = scenario;
+    }
+  }
+
+  public getDrivingScenario(): DrivingScenario {
+    return this.currentDrivingScenario;
+  }
+
+  public getDrivingScenarioProfile(scenario: DrivingScenario): DrivingScenarioProfile {
+    return this.drivingScenarios[scenario];
+  }
+
+  // ============================================================
+  // MULTI-ECU SUPPORT
+  // ============================================================
+  /** ECU address constants on CAN bus */
+  private ecuAddresses = {
+    engine: 0x7E0,        // Engine/Powertrain control
+    transmission: 0x7E1,  // Transmission control
+    abs: 0x7E2,          // ABS/Braking control
+  };
+
+  /** Response IDs for each ECU */
+  private ecuResponseIds = {
+    0x7E0: 0x7E8,
+    0x7E1: 0x7E9,
+    0x7E2: 0x7EA,
+  };
+
+  /** Per-ECU DTC storage */
+  private ecuDTCs: Record<number, { stored: string[]; pending: string[]; permanent: string[] }> = {
+    0x7E0: { stored: [], pending: [], permanent: [] },
+    0x7E1: { stored: [], pending: [], permanent: [] },
+    0x7E2: { stored: [], pending: [], permanent: [] },
+  };
+
+  /** Transmission and ABS state */
+  private transmissionState = {
+    gear: 0,
+    temperature: 85,
+    shiftCount: 0,
+  };
+
+  private absState = {
+    wheelSpeedFL: 0,
+    wheelSpeedFR: 0,
+    wheelSpeedRL: 0,
+    wheelSpeedRR: 0,
+    brakePressure: 0,
+    absActive: false,
+  };
+
+  public getECUAddress(ecuName: keyof typeof this.ecuAddresses): number {
+    return this.ecuAddresses[ecuName];
+  }
+
+  public getECUResponseId(ecuAddress: number): number {
+    return this.ecuResponseIds[ecuAddress] || 0x7FF;
+  }
+
+  public getECUDTCs(ecuAddress: number): { stored: string[]; pending: string[]; permanent: string[] } {
+    return this.ecuDTCs[ecuAddress] || { stored: [], pending: [], permanent: [] };
+  }
+
+  public addECUDTC(ecuAddress: number, code: string, type: 'stored' | 'pending' | 'permanent') {
+    if (!this.ecuDTCs[ecuAddress]) {
+      this.ecuDTCs[ecuAddress] = { stored: [], pending: [], permanent: [] };
+    }
+    if (!this.ecuDTCs[ecuAddress][type].includes(code)) {
+      this.ecuDTCs[ecuAddress][type].push(code);
+    }
+  }
+
+  public removeECUDTC(ecuAddress: number, code: string, type: 'stored' | 'pending' | 'permanent') {
+    if (this.ecuDTCs[ecuAddress]) {
+      this.ecuDTCs[ecuAddress][type] = this.ecuDTCs[ecuAddress][type].filter((c) => c !== code);
+    }
+  }
+
+  public getTransmissionState() {
+    return { ...this.transmissionState };
+  }
+
+  public getABSState() {
+    return { ...this.absState };
+  }
+
+  // ============================================================
+  // CAN FRAME GENERATION
+  // ============================================================
+  /** Generated CAN frame for IDS testing */
+  private canFrames: CANFrame[] = [];
+  private canFrameGenerationRate = 10; // Hz (1 frame every 100ms at 10Hz)
+  private lastCanFrameTime = Date.now();
+
+  /**
+   * Generate raw CAN frames from current vehicle state.
+   * Frames are generated at configurable rates for IDS testing.
+   */
+  private generateCANFrames() {
+    const now = Date.now();
+    const timeSinceLastFrame = now - this.lastCanFrameTime;
+    const frameIntervalMs = 1000 / this.canFrameGenerationRate;
+
+    if (timeSinceLastFrame < frameIntervalMs) {
+      return;
+    }
+
+    this.lastCanFrameTime = now;
+    const timestamp = now - this.logStartTime;
+
+    // Frame 1: Engine ECU (0x7E0) - Engine load, coolant temp, RPM, speed, timing, MAF, throttle
+    const engineFrame = new Uint8Array(8);
+    engineFrame[0] = Math.floor(this.sensors.engineLoad * 2.55); // Engine Load (0-100% → 0-255)
+    engineFrame[1] = Math.floor((this.sensors.coolantTemp + 40) * 0.75); // Coolant Temp (-40°C to 215°C → 0-255)
+    engineFrame[2] = Math.floor((this.sensors.rpm >> 8) & 0xFF);      // RPM high byte
+    engineFrame[3] = Math.floor(this.sensors.rpm & 0xFF);             // RPM low byte
+    engineFrame[4] = Math.floor(this.sensors.speed);                  // Vehicle Speed
+    engineFrame[5] = Math.floor((this.sensors.timingAdvance + 64) * 2); // Timing Advance (-64 to +64 → 0-255)
+    engineFrame[6] = Math.floor(this.sensors.mafRate);                // MAF rate
+    engineFrame[7] = Math.floor(this.sensors.throttle * 2.55);        // Throttle Position
+
+    this.canFrames.push({
+      id: 0x7E0,
+      data: engineFrame,
+      timestamp,
+    });
+
+    // Frame 2: Transmission ECU (0x7E1) - Gear, transmission temp, shift count
+    const transmissionFrame = new Uint8Array(8);
+    transmissionFrame[0] = this.transmissionState.gear & 0x0F;
+    transmissionFrame[1] = Math.floor((this.transmissionState.temperature + 40) * 0.75);
+    transmissionFrame[2] = (this.transmissionState.shiftCount >> 8) & 0xFF;
+    transmissionFrame[3] = this.transmissionState.shiftCount & 0xFF;
+    transmissionFrame[4] = Math.floor(this.sensors.throttle * 2.55);
+    transmissionFrame[5] = 0;
+    transmissionFrame[6] = 0;
+    transmissionFrame[7] = 0;
+
+    this.canFrames.push({
+      id: 0x7E1,
+      data: transmissionFrame,
+      timestamp,
+    });
+
+    // Frame 3: ABS/Braking ECU (0x7E2) - Wheel speeds, brake pressure, ABS status
+    const absFrame = new Uint8Array(8);
+    absFrame[0] = Math.floor((this.absState.wheelSpeedFL >> 8) & 0xFF);
+    absFrame[1] = Math.floor(this.absState.wheelSpeedFL & 0xFF);
+    absFrame[2] = Math.floor((this.absState.wheelSpeedFR >> 8) & 0xFF);
+    absFrame[3] = Math.floor(this.absState.wheelSpeedFR & 0xFF);
+    absFrame[4] = Math.floor((this.absState.wheelSpeedRL >> 8) & 0xFF);
+    absFrame[5] = Math.floor(this.absState.wheelSpeedRL & 0xFF);
+    absFrame[6] = Math.floor(this.absState.brakePressure);
+    absFrame[7] = (this.absState.absActive ? 0x01 : 0x00);
+
+    this.canFrames.push({
+      id: 0x7E2,
+      data: absFrame,
+      timestamp,
+    });
+
+    // Keep buffer to last 1000 frames
+    if (this.canFrames.length > 1000) {
+      this.canFrames = this.canFrames.slice(-1000);
+    }
+  }
+
+  public getCANFrames(): CANFrame[] {
+    return [...this.canFrames];
+  }
+
+  public setCANFrameRate(hz: number) {
+    this.canFrameGenerationRate = Math.max(1, Math.min(hz, 100)); // Limit 1-100Hz
+  }
+
+  public clearCANFrames() {
+    this.canFrames = [];
+  }
+
+  // ============================================================
+  // ATTACK SIMULATION MODES - For IDS Testing
+  // ============================================================
+  private attackFrames: CANFrame[] = [];
+  private dosActive = false;
+  private dosFrameId = 0;
+  private dosRate = 0;
+
+  /**
+   * Inject arbitrary CAN frame for testing
+   */
+  public injectCANFrame(id: number, data: Uint8Array | number[]) {
+    const dataArray = new Uint8Array(data);
+    const timestamp = Date.now() - this.logStartTime;
+    this.attackFrames.push({
+      id,
+      data: dataArray,
+      timestamp,
+    });
+  }
+
+  /**
+   * Replay previously captured frames
+   */
+  public replayCANFrames(frames: CANFrame[], speedMultiplier: number = 1.0) {
+    const baseTime = Date.now() - this.logStartTime;
+    for (const frame of frames) {
+      const delayedFrame: CANFrame = {
+        ...frame,
+        timestamp: baseTime + frame.timestamp / speedMultiplier,
+      };
+      this.attackFrames.push(delayedFrame);
+    }
+  }
+
+  /**
+   * Start DoS attack - flood bus with frames at high rate
+   */
+  public startDoSAttack(frameId: number, rateHz: number = 1000) {
+    this.dosActive = true;
+    this.dosFrameId = frameId;
+    this.dosRate = rateHz;
+  }
+
+  /**
+   * Stop DoS attack
+   */
+  public stopDoSAttack() {
+    this.dosActive = false;
+  }
+
+  /**
+   * Fuzzing attack - send random data to random IDs
+   */
+  public startFuzzing(idRangeMin: number = 0x100, idRangeMax: number = 0x7FF, durationMs: number = 5000) {
+    const startTime = Date.now();
+    const fuzzInterval = setInterval(() => {
+      if (Date.now() - startTime > durationMs) {
+        clearInterval(fuzzInterval);
+        return;
+      }
+
+      const randomId = Math.floor(Math.random() * (idRangeMax - idRangeMin + 1)) + idRangeMin;
+      const randomData = new Uint8Array(8);
+      for (let i = 0; i < 8; i++) {
+        randomData[i] = Math.floor(Math.random() * 256);
+      }
+      this.injectCANFrame(randomId, randomData);
+    }, 50); // Fuzz 20 times per second
+  }
+
+  /**
+   * GPS spoofing - inject fake GPS coordinates into CAN bus
+   * (Real GPS would be on separate interface, but simulate on CAN)
+   */
+  public injectGPSSpoofing(latitude: number, longitude: number) {
+    // GPS frame: ID 0x100 (arbitrary choice for GPS)
+    const gpsFrame = new Uint8Array(8);
+
+    // Encode latitude (±90 degrees, use 0.000001 precision)
+    const latInt = Math.floor(latitude * 1000000);
+    gpsFrame[0] = (latInt >> 24) & 0xFF;
+    gpsFrame[1] = (latInt >> 16) & 0xFF;
+    gpsFrame[2] = (latInt >> 8) & 0xFF;
+    gpsFrame[3] = latInt & 0xFF;
+
+    // Encode longitude (±180 degrees, use 0.000001 precision)
+    const lonInt = Math.floor(longitude * 1000000);
+    gpsFrame[4] = (lonInt >> 24) & 0xFF;
+    gpsFrame[5] = (lonInt >> 16) & 0xFF;
+    gpsFrame[6] = (lonInt >> 8) & 0xFF;
+    gpsFrame[7] = lonInt & 0xFF;
+
+    this.injectCANFrame(0x100, gpsFrame);
+  }
+
+  public getAttackFrames(): CANFrame[] {
+    return [...this.attackFrames];
+  }
+
+  public clearAttackFrames() {
+    this.attackFrames = [];
+  }
+
+  public isDoSActive(): boolean {
+    return this.dosActive;
   }
 
   destroy() {

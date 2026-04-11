@@ -1,0 +1,29 @@
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Copy backend files
+COPY app/backend/package.json app/backend/package-lock.json* app/backend/pnpm-lock.yaml* ./
+
+# Install dependencies
+RUN npm install --production
+
+# Copy backend source
+COPY app/backend/src ./src
+COPY app/backend/tsconfig.json ./
+
+# Build TypeScript
+RUN npm run build
+
+# Create data directory
+RUN mkdir -p /app/data
+
+# Expose port
+EXPOSE 8000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+  CMD node -e "require('http').get('http://localhost:8000/api/health', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})"
+
+# Start the server
+CMD ["npm", "start"]
