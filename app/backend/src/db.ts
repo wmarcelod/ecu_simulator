@@ -1,9 +1,9 @@
 import Database from 'better-sqlite3';
 import { join } from 'path';
-import { fileURLToPath } from 'url';
 
-const __dirname = import.meta.url ? join(fileURLToPath(import.meta.url), '..') : process.cwd();
-const dbPath = join(__dirname, '../../data/simulator.db');
+// Use DATA_DIR env var, or default to /app/data in production, ./data in development
+const dataDir = process.env.DATA_DIR || join(process.cwd(), 'data');
+const dbPath = join(dataDir, 'simulator.db');
 
 let db: Database.Database;
 
