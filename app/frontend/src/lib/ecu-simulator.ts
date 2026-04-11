@@ -274,6 +274,34 @@ const DEFAULT_SENSOR_KEYS: (keyof SensorState)[] = [
 ];
 
 // ============================================================
+// UDS (ISO 14229) Service Constants
+// ============================================================
+export const UDS_SERVICES = {
+  0x10: 'DiagnosticSessionControl',
+  0x11: 'ECUReset',
+  0x14: 'ClearDiagnosticInformation',
+  0x19: 'ReadDTCInformation',
+  0x22: 'ReadDataByIdentifier',
+  0x27: 'SecurityAccess',
+  0x28: 'CommunicationControl',
+  0x2E: 'WriteDataByIdentifier',
+  0x3E: 'TesterPresent',
+  0x85: 'ControlDTCSetting',
+} as const;
+
+export const UDS_NRC = {
+  0x10: 'generalReject',
+  0x11: 'serviceNotSupported',
+  0x12: 'subFunctionNotSupported',
+  0x13: 'incorrectMessageLength',
+  0x22: 'conditionsNotCorrect',
+  0x31: 'requestOutOfRange',
+  0x33: 'securityAccessDenied',
+  0x35: 'invalidKey',
+  0x78: 'responsePending',
+} as const;
+
+// ============================================================
 // ECU Simulator Class
 // ============================================================
 export class ECUSimulator {
@@ -300,6 +328,16 @@ export class ECUSimulator {
   // DBC custom profiles
   private customProfiles: VehicleProfile[] = [];
   private dbcSignals: Record<string, number> = {};
+
+  // ============================================================
+  // UDS Session and Security State
+  // ============================================================
+  private udsSession: number = 0x01; // 0x01 = Default Session
+  private securityLevel: number = 0; // 0 = locked, 1 = unlocked
+  private securitySeed: number = 0; // Current seed value
+  private dtcSettingEnabled: boolean = true; // DTC recording enabled
+  private communicationEnabled: boolean = true; // Communication enabled
+  private didStorage: Record<string, number[]> = {}; // Writable DID storage
 
   constructor(profileId: string = 'sedan') {
     this.profile = getProfileById(profileId) || VEHICLE_PROFILES[0];
@@ -1079,6 +1117,18 @@ export class ECUSimulator {
   private processOBDCommand(cmd: string): string {
     const mode = cmd.substring(0, 2);
 
+    // Check for UDS Service IDs (0x10-0x3E, 0x85)
+    // UDS commands use hex bytes directly, not the OBD mode format
+    const isUDSService =
+      (mode === '10' || mode === '11' || mode === '14' || mode === '19' ||
+       mode === '22' || mode === '27' || mode === '28' || mode === '2E' ||
+       mode === '3E' || mode === '85');
+
+    if (isUDSService) {
+      return this.processUDSCommand(cmd);
+    }
+
+    // Standard OBD-II modes (01-0A)
     switch (mode) {
       case '01':
         return this.handleMode01(cmd.substring(2));
@@ -1296,6 +1346,427 @@ export class ECUSimulator {
       ...bytes.map((b) => b.toString(16).toUpperCase().padStart(2, '0')),
     ];
     return this.config.spacesEnabled ? parts.join(' ') : parts.join('');
+  }
+
+  // ============================================================
+  // UDS (ISO 14229) Service Handlers
+  // ============================================================
+
+  /**
+   * Process UDS (Unified Diagnostic Services) commands
+   * Format: [SID][SubFunction/Data]
+   * Response: [SID+0x40][Data] or [0x7F][SID][NRC]
+   */
+  private processUDSCommand(cmd: string): string {
+    const sid = cmd.substring(0, 2).toUpperCase();
+    const data = cmd.substring(2).toUpperCase();
+
+    switch (sid) {
+      case '10': // DiagnosticSessionControl
+        return this.handleUDSSessionControl(data);
+      case '11': // ECUReset
+        return this.handleUDSECUReset(data);
+      case '14': // ClearDiagnosticInformation
+        return this.handleUDSClearDTC(data);
+      case '19': // ReadDTCInformation
+        return this.handleUDSReadDTC(data);
+      case '22': // ReadDataByIdentifier
+        return this.handleUDSReadDID(data);
+      case '27': // SecurityAccess
+        return this.handleUDSSecurityAccess(data);
+      case '28': // CommunicationControl
+        return this.handleUDSCommunicationControl(data);
+      case '2E': // WriteDataByIdentifier
+        return this.handleUDSWriteDID(data);
+      case '3E': // TesterPresent
+        return this.handleUDSTesterPresent(data);
+      case '85': // ControlDTCSetting
+        return this.handleUDSControlDTCSetting(data);
+      default:
+        return this.formatUDSNegativeResponse(sid, 0x11); // serviceNotSupported
+    }
+  }
+
+  /**
+   * Format UDS positive response
+   */
+  private formatUDSPositiveResponse(sid: string, responseData: number[]): string {
+    const responseSID = (parseInt(sid, 16) + 0x40).toString(16).toUpperCase().padStart(2, '0');
+    const parts = [responseSID, ...responseData.map((b) => b.toString(16).toUpperCase().padStart(2, '0'))];
+
+    if (this.config.headersEnabled) {
+      const header = '7E8';
+      const len = (parts.length).toString(16).toUpperCase().padStart(2, '0');
+      return this.config.spacesEnabled
+        ? `${header} ${len} ${parts.join(' ')}`
+        : `${header}${len}${parts.join('')}`;
+    }
+
+    return this.config.spacesEnabled ? parts.join(' ') : parts.join('');
+  }
+
+  /**
+   * Format UDS negative response: [0x7F][SID][NRC]
+   */
+  private formatUDSNegativeResponse(sid: string, nrc: number): string {
+    const parts = [
+      '7F',
+      sid.toUpperCase(),
+      nrc.toString(16).toUpperCase().padStart(2, '0'),
+    ];
+
+    if (this.config.headersEnabled) {
+      const header = '7E8';
+      const len = parts.length.toString(16).toUpperCase().padStart(2, '0');
+      return this.config.spacesEnabled
+        ? `${header} ${len} ${parts.join(' ')}`
+        : `${header}${len}${parts.join('')}`;
+    }
+
+    return this.config.spacesEnabled ? parts.join(' ') : parts.join('');
+  }
+
+  /**
+   * UDS 0x10: DiagnosticSessionControl
+   * Sub-functions: 0x01=DefaultSession, 0x02=Programming, 0x03=ExtendedDiagnostic
+   */
+  private handleUDSSessionControl(data: string): string {
+    if (data.length < 2) {
+      return this.formatUDSNegativeResponse('10', 0x13); // incorrectMessageLength
+    }
+
+    const subfunc = parseInt(data.substring(0, 2), 16);
+
+    switch (subfunc) {
+      case 0x01: // Default Session
+        this.udsSession = 0x01;
+        this.securityLevel = 0; // Reset security
+        return this.formatUDSPositiveResponse('10', [0x01, 0x00, 0x32, 0x01, 0xF4]);
+      case 0x02: // Programming Session
+        this.udsSession = 0x02;
+        this.securityLevel = 0; // Reset security
+        return this.formatUDSPositiveResponse('10', [0x02, 0x00, 0x32, 0x01, 0xF4]);
+      case 0x03: // Extended Diagnostic Session
+        this.udsSession = 0x03;
+        this.securityLevel = 0; // Reset security
+        return this.formatUDSPositiveResponse('10', [0x03, 0x00, 0x32, 0x01, 0xF4]);
+      default:
+        return this.formatUDSNegativeResponse('10', 0x12); // subFunctionNotSupported
+    }
+  }
+
+  /**
+   * UDS 0x11: ECUReset
+   * Sub-functions: 0x01=HardReset, 0x02=KeyOffOnReset, 0x03=SoftReset, 0x04=EnableRapidPowerShutDown
+   */
+  private handleUDSECUReset(data: string): string {
+    if (data.length < 2) {
+      return this.formatUDSNegativeResponse('11', 0x13);
+    }
+
+    const subfunc = parseInt(data.substring(0, 2), 16);
+
+    // Reset state for all sub-functions
+    this.udsSession = 0x01;
+    this.securityLevel = 0;
+    this.storedDTCs = [...this.profile.dtcs.stored];
+    this.pendingDTCs = [...this.profile.dtcs.pending];
+
+    return this.formatUDSPositiveResponse('11', [subfunc]);
+  }
+
+  /**
+   * UDS 0x14: ClearDiagnosticInformation
+   * Clears DTCs similar to OBD Mode 04
+   */
+  private handleUDSClearDTC(data: string): string {
+    if (data.length < 6) {
+      return this.formatUDSNegativeResponse('14', 0x13);
+    }
+
+    this.clearDTCs();
+    return this.formatUDSPositiveResponse('14', [0x00, 0x00, 0x00]);
+  }
+
+  /**
+   * UDS 0x19: ReadDTCInformation
+   * Sub-functions: 0x01=reportNumberOfDTCByStatusMask, 0x02=reportDTCByStatusMask
+   */
+  private handleUDSReadDTC(data: string): string {
+    if (data.length < 2) {
+      return this.formatUDSNegativeResponse('19', 0x13);
+    }
+
+    const subfunc = parseInt(data.substring(0, 2), 16);
+    let responseData: number[] = [subfunc];
+
+    switch (subfunc) {
+      case 0x01: // reportNumberOfDTCByStatusMask
+        if (data.length < 4) {
+          return this.formatUDSNegativeResponse('19', 0x13);
+        }
+        const statusMask = parseInt(data.substring(2, 4), 16);
+        // Count DTCs matching status mask (simplified)
+        const dtcCount = this.storedDTCs.length;
+        responseData.push(0x00); // Reserved
+        responseData.push(dtcCount); // Number of DTCs
+        break;
+
+      case 0x02: // reportDTCByStatusMask
+        if (data.length < 4) {
+          return this.formatUDSNegativeResponse('19', 0x13);
+        }
+        // Return all stored DTCs encoded as UDS format
+        for (const dtc of this.storedDTCs) {
+          const [b1, b2] = this.encodeDTC(dtc);
+          responseData.push(b1, b2, 0x00); // statusAvailabilityMask = 0
+        }
+        break;
+
+      default:
+        return this.formatUDSNegativeResponse('19', 0x12);
+    }
+
+    return this.formatUDSPositiveResponse('19', responseData);
+  }
+
+  /**
+   * UDS 0x22: ReadDataByIdentifier (DID)
+   * Common DIDs: 0xF190=VIN, 0xF18C=ECU Serial, 0xF191=HW Version, 0xF187=PartNumber, 0xD001=CustomState
+   */
+  private handleUDSReadDID(data: string): string {
+    if (data.length < 4) {
+      return this.formatUDSNegativeResponse('22', 0x13);
+    }
+
+    let responseData: number[] = [];
+    let offset = 0;
+
+    // Parse DIDs (2 bytes each)
+    while (offset < data.length) {
+      if (offset + 4 > data.length) {
+        return this.formatUDSNegativeResponse('22', 0x13);
+      }
+
+      const did = data.substring(offset, offset + 4).toUpperCase();
+      offset += 4;
+
+      switch (did) {
+        case 'F190': { // VIN
+          const vin = this.profile.vin;
+          const vinBytes = Array.from(vin).map((c) => c.charCodeAt(0));
+          responseData.push(...vinBytes);
+          break;
+        }
+        case 'F18C': { // ECU Serial Number
+          const serial = `ECU_${this.profile.id.toUpperCase()}_001`;
+          const serialBytes = Array.from(serial).map((c) => c.charCodeAt(0));
+          responseData.push(...serialBytes);
+          break;
+        }
+        case 'F191': { // Hardware Version
+          const hwVersion = Array.from('HW_V1.0').map((c) => c.charCodeAt(0));
+          responseData.push(...hwVersion);
+          break;
+        }
+        case 'F187': { // Part Number
+          const partNum = Array.from(this.profile.calibrationId).map((c) => c.charCodeAt(0));
+          responseData.push(...partNum);
+          break;
+        }
+        case 'D001': { // Custom State (RPM encoded as 2 bytes)
+          const rpm = Math.round(this.sensors.rpm);
+          responseData.push((rpm >> 8) & 0xFF, rpm & 0xFF);
+          break;
+        }
+        default:
+          return this.formatUDSNegativeResponse('22', 0x31); // requestOutOfRange
+      }
+    }
+
+    return this.formatUDSPositiveResponse('22', responseData);
+  }
+
+  /**
+   * UDS 0x27: SecurityAccess (Seed/Key)
+   * Seed: 0xDEAD, Key = Seed XOR 0xBEEF
+   */
+  private handleUDSSecurityAccess(data: string): string {
+    if (data.length < 2) {
+      return this.formatUDSNegativeResponse('27', 0x13);
+    }
+
+    const subfunc = parseInt(data.substring(0, 2), 16);
+
+    if (subfunc === 0x01) {
+      // Request seed
+      this.securitySeed = 0xDEAD; // Fixed seed for simulation
+      return this.formatUDSPositiveResponse('27', [0x01, 0xDE, 0xAD]);
+    } else if (subfunc === 0x02) {
+      // Send key
+      if (data.length < 6) {
+        return this.formatUDSNegativeResponse('27', 0x13);
+      }
+
+      const keyBytes = data.substring(2);
+      const keyValue = parseInt(keyBytes, 16);
+      const expectedKey = this.securitySeed ^ 0xBEEF;
+
+      if (keyValue === expectedKey) {
+        this.securityLevel = 1; // Unlock
+        return this.formatUDSPositiveResponse('27', [0x02]);
+      } else {
+        return this.formatUDSNegativeResponse('27', 0x35); // invalidKey
+      }
+    } else {
+      return this.formatUDSNegativeResponse('27', 0x12);
+    }
+  }
+
+  /**
+   * UDS 0x28: CommunicationControl
+   * Sub-functions: 0x00=enableRxAndTx, 0x01=enableRxAndDisableTx, 0x02=disableRxAndEnableTx, 0x03=disableRxAndTx
+   */
+  private handleUDSCommunicationControl(data: string): string {
+    if (data.length < 4) {
+      return this.formatUDSNegativeResponse('28', 0x13);
+    }
+
+    const subfunc = parseInt(data.substring(0, 2), 16);
+    const commType = parseInt(data.substring(2, 4), 16);
+
+    switch (subfunc) {
+      case 0x00: // enableRxAndTx
+        this.communicationEnabled = true;
+        return this.formatUDSPositiveResponse('28', [subfunc, commType]);
+      case 0x01: // enableRxAndDisableTx
+        this.communicationEnabled = true;
+        return this.formatUDSPositiveResponse('28', [subfunc, commType]);
+      case 0x02: // disableRxAndEnableTx
+        this.communicationEnabled = false;
+        return this.formatUDSPositiveResponse('28', [subfunc, commType]);
+      case 0x03: // disableRxAndTx
+        this.communicationEnabled = false;
+        return this.formatUDSPositiveResponse('28', [subfunc, commType]);
+      default:
+        return this.formatUDSNegativeResponse('28', 0x12);
+    }
+  }
+
+  /**
+   * UDS 0x2E: WriteDataByIdentifier (DID)
+   * Requires security level 1 (unlocked)
+   */
+  private handleUDSWriteDID(data: string): string {
+    // Check security level
+    if (this.securityLevel === 0) {
+      return this.formatUDSNegativeResponse('2E', 0x33); // securityAccessDenied
+    }
+
+    if (data.length < 4) {
+      return this.formatUDSNegativeResponse('2E', 0x13);
+    }
+
+    const did = data.substring(0, 4).toUpperCase();
+    const didData = data.substring(4);
+
+    if (didData.length % 2 !== 0) {
+      return this.formatUDSNegativeResponse('2E', 0x13);
+    }
+
+    // Store writable DID
+    const bytes: number[] = [];
+    for (let i = 0; i < didData.length; i += 2) {
+      bytes.push(parseInt(didData.substring(i, i + 2), 16));
+    }
+
+    this.didStorage[did] = bytes;
+
+    return this.formatUDSPositiveResponse('2E', []);
+  }
+
+  /**
+   * UDS 0x3E: TesterPresent (Keep-Alive)
+   * Sub-function: 0x00 with service not suppressed response
+   */
+  private handleUDSTesterPresent(data: string): string {
+    if (data.length < 2) {
+      return this.formatUDSNegativeResponse('3E', 0x13);
+    }
+
+    const subfunc = parseInt(data.substring(0, 2), 16);
+
+    if ((subfunc & 0x7F) === 0x00) {
+      // Service not suppressed by default
+      return this.formatUDSPositiveResponse('3E', [0x00]);
+    }
+
+    return this.formatUDSNegativeResponse('3E', 0x12);
+  }
+
+  /**
+   * UDS 0x85: ControlDTCSetting
+   * Sub-functions: 0x01=on, 0x02=off
+   */
+  private handleUDSControlDTCSetting(data: string): string {
+    if (data.length < 2) {
+      return this.formatUDSNegativeResponse('85', 0x13);
+    }
+
+    const subfunc = parseInt(data.substring(0, 2), 16);
+
+    switch (subfunc) {
+      case 0x01: // on
+        this.dtcSettingEnabled = true;
+        return this.formatUDSPositiveResponse('85', [0x01]);
+      case 0x02: // off
+        this.dtcSettingEnabled = false;
+        return this.formatUDSPositiveResponse('85', [0x02]);
+      default:
+        return this.formatUDSNegativeResponse('85', 0x12);
+    }
+  }
+
+  // ============================================================
+  // UDS ISO-TP Framing (for reference, not used in response yet)
+  // ============================================================
+
+  /**
+   * Split a response into ISO-TP frames if needed
+   * Returns array of frame strings for multi-frame responses
+   */
+  private formatISO_TPFrames(response: string): string[] {
+    const bytes = response.split(' ').map((b) => parseInt(b, 16));
+
+    if (bytes.length <= 7) {
+      return [response]; // Single frame
+    }
+
+    const frames: string[] = [];
+    const dataLength = bytes.length;
+
+    // First Frame: [0x10 | (len>>8), len & 0xFF, data(0-5)]
+    const firstFrame = [0x10 | (dataLength >> 8), dataLength & 0xFF, ...bytes.slice(0, 5)];
+    frames.push(
+      firstFrame
+        .map((b) => b.toString(16).toUpperCase().padStart(2, '0'))
+        .join(this.config.spacesEnabled ? ' ' : ''),
+    );
+
+    // Consecutive Frames: [0x20 + seqNum, data(6-?)]
+    let seqNum = 0;
+    for (let i = 5; i < bytes.length; i += 7) {
+      seqNum++;
+      const frameData = bytes.slice(i, Math.min(i + 7, bytes.length));
+      const consecutiveFrame = [0x20 + seqNum, ...frameData];
+      frames.push(
+        consecutiveFrame
+          .map((b) => b.toString(16).toUpperCase().padStart(2, '0'))
+          .join(this.config.spacesEnabled ? ' ' : ''),
+      );
+    }
+
+    return frames;
   }
 
   destroy() {

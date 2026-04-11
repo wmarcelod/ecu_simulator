@@ -1,0 +1,15 @@
+node_modules
+.git
+dist
+*.md
+data/
+docs/
+uploads/
+report_sections/
+.env
+.DS_Store
+*.log
+.eslintcache
+.vite
+coverage
+.nyc_output
