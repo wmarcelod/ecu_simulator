@@ -39,12 +39,6 @@ services:
       timeout: 3s
       retries: 3
       start_period: 40s
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.ecu-simulator.rule=Host(`ecu.marcelod.com.br`)"
-      - "traefik.http.routers.ecu-simulator.entrypoints=websecure"
-      - "traefik.http.routers.ecu-simulator.tls.certresolver=letsencrypt"
-      - "traefik.http.services.ecu-simulator.loadbalancer.server.port=80"
     networks:
       - dokploy-network
       - internal
