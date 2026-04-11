@@ -1,4 +1,4 @@
-import express, { Request, Response } from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import { createServer } from 'http';
 import { initializeDatabase } from './db.js';
@@ -94,7 +94,8 @@ app.use((req: Request, res: Response) => {
 });
 
 // Error handler
-app.use((err: any, req: Request, res: Response, next: any) => {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
   console.error('Server error:', err);
   res.status(500).json({
     success: false,
@@ -104,7 +105,7 @@ app.use((err: any, req: Request, res: Response, next: any) => {
 });
 
 // Start server
-httpServer.listen(PORT, HOST as string, () => {
+httpServer.listen(Number(PORT), HOST as string, () => {
   console.log(`ECU Simulator Backend listening on ${HOST}:${PORT}`);
   console.log(`WebSocket: ws://${HOST}:${PORT}/ws`);
   console.log(`API Docs: http://${HOST}:${PORT}/`);

@@ -69,7 +69,7 @@ export class WebSocketManager {
         }
       });
 
-      ws.on('error', (error) => {
+      ws.on('error', (error: Error) => {
         console.error('WebSocket error:', error);
       });
     });
@@ -287,7 +287,7 @@ export class WebSocketManager {
       await createLogAsync({
         sessionId: commandMetadata.sessionId,
         timestamp: Date.now(),
-        commandType: message.commandType || 'OBD2',
+        commandType: message.commandType ?? 'OBD2' as const,
         command: '', // Response doesn't have the original command
         response: response || '',
         responseTime: responseTime || 0,
