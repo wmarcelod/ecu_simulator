@@ -6,6 +6,19 @@ interface DrivingScenariosProps {
   simulator: ECUSimulator;
 }
 
+interface TelemetryPoint {
+  rpm: number;
+  speed: number;
+  throttle: number;
+  load: number;
+}
+
+interface ScenarioTimelineEntry {
+  scenario: DrivingScenario;
+  startTime: number;
+  duration: number;
+}
+
 const SCENARIOS: Array<{ id: DrivingScenario; label: string; icon: string; description: string; color: string }> = [
   { id: 'idle', label: 'IDLE', icon: '●', description: 'Engine idle, no motion', color: '#94a3b8' },
   { id: 'city', label: 'CITY', icon: '⤡', description: 'Stop-and-go urban driving', color: '#38bdf8' },
@@ -14,14 +27,101 @@ const SCENARIOS: Array<{ id: DrivingScenario; label: string; icon: string; descr
   { id: 'eco', label: 'ECO', icon: '♻', description: 'Fuel-efficient smooth driving', color: '#a3e635' },
 ];
 
+// Mini gauge component for telemetry
+function MiniGauge({ label, value, max, color }: { label: string; value: number; max: number; color: string }) {
+  const percent = Math.min(100, (value / max) * 100);
+  return (
+    <div className="flex flex-col gap-1 items-center flex-1">
+      <div className="w-full h-1.5 rounded-full bg-slate-700 overflow-hidden">
+        <div
+          className="h-full transition-all duration-150"
+          style={{ width: `${percent}%`, backgroundColor: color }}
+        />
+      </div>
+      <div className="text-[8px] font-mono text-slate-500 text-center">
+        <div>{label}</div>
+        <div style={{ color }}>{Math.round(value)}</div>
+      </div>
+    </div>
+  );
+}
+
+// Scenario range indicator
+function ScenarioRangeIndicator({
+  label,
+  current,
+  min,
+  max,
+  color,
+  unit,
+}: {
+  label: string;
+  current: number;
+  min: number;
+  max: number;
+  color: string;
+  unit: string;
+}) {
+  const percent = ((current - min) / (max - min)) * 100;
+  const clampedPercent = Math.max(0, Math.min(100, percent));
+
+  return (
+    <div className="space-y-1">
+      <div className="flex justify-between items-center">
+        <span className="text-[9px] font-mono text-slate-400">{label}</span>
+        <span className="text-[9px] font-mono text-slate-300">{Math.round(current)} {unit}</span>
+      </div>
+      <div className="relative h-2 rounded bg-slate-700/50 overflow-hidden">
+        <div className="absolute inset-0 flex">
+          <div className="flex-1 border-r border-slate-600/50 text-[7px] text-slate-600 flex items-center justify-start px-0.5">
+            {Math.round(min)}
+          </div>
+          <div className="flex-1 border-r border-slate-600/50" />
+          <div className="flex-1" />
+        </div>
+        <div
+          className="absolute top-0 h-full transition-all duration-150"
+          style={{ left: '0%', width: `${clampedPercent}%`, backgroundColor: color, opacity: 0.7 }}
+        />
+      </div>
+    </div>
+  );
+}
+
 export default function DrivingScenarioSelector({ simulator }: DrivingScenariosProps) {
   const { theme } = useTheme();
   const [currentScenario, setCurrentScenario] = useState<DrivingScenario>(simulator.getDrivingScenario());
   const [running, setRunning] = useState(simulator.isRunning());
+  const [sensorState, setSensorState] = useState(simulator.getState());
+  const [scenarioHistory, setScenarioHistory] = useState<ScenarioTimelineEntry[]>([
+    { scenario: simulator.getDrivingScenario(), startTime: 0, duration: 0 },
+  ]);
 
   const updateState = useCallback(() => {
-    setCurrentScenario(simulator.getDrivingScenario());
-    setRunning(simulator.isRunning());
+    const newScenario = simulator.getDrivingScenario();
+    const newRunning = simulator.isRunning();
+    const newSensorState = simulator.getState();
+
+    setCurrentScenario(newScenario);
+    setRunning(newRunning);
+    setSensorState(newSensorState);
+
+    // Update scenario history
+    setScenarioHistory((prev) => {
+      const lastEntry = prev[prev.length - 1];
+      const now = Date.now() / 1000;
+
+      if (newScenario !== lastEntry.scenario) {
+        // Scenario changed
+        return [...prev.slice(-59), { scenario: newScenario, startTime: now, duration: 0 }];
+      } else {
+        // Update duration of current scenario
+        return [
+          ...prev.slice(0, -1),
+          { ...lastEntry, duration: now - lastEntry.startTime },
+        ];
+      }
+    });
   }, [simulator]);
 
   useEffect(() => {
@@ -38,19 +138,23 @@ export default function DrivingScenarioSelector({ simulator }: DrivingScenariosP
   const border = t('border-[#1e293b]', 'border-gray-200', theme);
   const textMuted = t('text-slate-500', 'text-gray-500', theme);
   const textLabel = t('text-slate-400', 'text-gray-600', theme);
+  const panelBg = t('bg-[#0f172a]', 'bg-gray-50', theme);
+  const panelBorder = t('border-[#1e293b]', 'border-gray-200', theme);
 
   const current = SCENARIOS.find((s) => s.id === currentScenario);
+  const profile = current ? simulator.getDrivingScenarioProfile(currentScenario) : null;
 
   return (
-    <div className={`${bg} border ${border} rounded-md p-3`}>
-      <div className="flex items-center gap-2 mb-3">
+    <div className={`${bg} border ${border} rounded-md p-3 space-y-3`}>
+      {/* Header */}
+      <div className="flex items-center gap-2">
         <div className="w-1 h-3 bg-cyan-500/70 rounded-full" />
         <span className={`text-[10px] font-mono ${textLabel} uppercase tracking-widest`}>Driving Scenario</span>
         {running && <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse ml-auto" />}
       </div>
 
       {/* Current Scenario Display */}
-      <div className="mb-3 pb-3 border-b border-[#1e293b]">
+      <div className="pb-3 border-b border-[#1e293b]">
         <div className="flex items-center gap-3">
           <div
             className="w-3 h-3 rounded-full"
@@ -62,15 +166,74 @@ export default function DrivingScenarioSelector({ simulator }: DrivingScenariosP
             </div>
             {current && (
               <div className={`text-[9px] font-mono ${textLabel} mt-0.5`}>
-                {(() => {
-                  const profile = simulator.getDrivingScenarioProfile(currentScenario);
-                  return `RPM: ${profile.rpmRange.min}-${profile.rpmRange.max} | Speed: ${profile.speedRange.min}-${profile.speedRange.max} km/h`;
-                })()}
+                {profile && `RPM: ${profile.rpmRange.min}-${profile.rpmRange.max} | Speed: ${profile.speedRange.min}-${profile.speedRange.max} km/h`}
               </div>
             )}
           </div>
         </div>
       </div>
+
+      {/* Live Telemetry Strip */}
+      <div className={`${panelBg} border ${panelBorder} rounded p-2.5`}>
+        <div className={`text-[8px] font-mono ${textLabel} uppercase tracking-wider mb-2`}>Live Telemetry</div>
+        <div className="flex gap-2">
+          <MiniGauge label="RPM" value={sensorState.rpm} max={7000} color="#06b6d4" />
+          <MiniGauge label="Speed" value={sensorState.speed} max={200} color="#4ade80" />
+          <MiniGauge label="Throttle" value={sensorState.throttle * 100} max={100} color="#f59e0b" />
+          <MiniGauge label="Load" value={sensorState.engineLoad * 100} max={100} color="#ef4444" />
+        </div>
+      </div>
+
+      {/* Scenario Detail Panel */}
+      {profile && (
+        <div className={`${panelBg} border ${panelBorder} rounded p-3 space-y-2.5`}>
+          <div className={`text-[8px] font-mono ${textLabel} uppercase tracking-wider`}>Scenario Profile</div>
+
+          <ScenarioRangeIndicator
+            label="RPM Range"
+            current={sensorState.rpm}
+            min={profile.rpmRange.min}
+            max={profile.rpmRange.max}
+            color="#06b6d4"
+            unit="rpm"
+          />
+
+          <ScenarioRangeIndicator
+            label="Speed Range"
+            current={sensorState.speed}
+            min={profile.speedRange.min}
+            max={profile.speedRange.max}
+            color="#4ade80"
+            unit="km/h"
+          />
+
+          <ScenarioRangeIndicator
+            label="Throttle Range"
+            current={sensorState.throttle * 100}
+            min={profile.throttleRange.min * 100}
+            max={profile.throttleRange.max * 100}
+            color="#f59e0b"
+            unit="%"
+          />
+
+          {/* Coolant Temp Display */}
+          <div className="pt-1">
+            <div className="flex justify-between items-center">
+              <span className="text-[9px] font-mono text-slate-400">Coolant Temp</span>
+              <span className="text-[9px] font-mono text-slate-300">{Math.round(sensorState.coolantTemp)}°C</span>
+            </div>
+            <div className="h-1.5 rounded bg-slate-700/50 mt-1 overflow-hidden">
+              <div
+                className="h-full transition-all duration-150"
+                style={{
+                  width: `${Math.min(100, (sensorState.coolantTemp / 120) * 100)}%`,
+                  backgroundColor: sensorState.coolantTemp > 100 ? '#ef4444' : '#4ade80',
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Scenario Buttons */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
@@ -98,6 +261,24 @@ export default function DrivingScenarioSelector({ simulator }: DrivingScenariosP
             </span>
           </button>
         ))}
+      </div>
+
+      {/* Scenario Transition Timeline */}
+      <div className="pt-2 border-t border-[#1e293b]">
+        <div className={`text-[8px] font-mono ${textLabel} uppercase tracking-wider mb-2`}>60s Timeline</div>
+        <div className="flex h-2 rounded overflow-hidden bg-slate-800/50 gap-0.5">
+          {scenarioHistory.map((entry, idx) => {
+            const scenarioColor = SCENARIOS.find((s) => s.id === entry.scenario)?.color || '#94a3b8';
+            return (
+              <div
+                key={idx}
+                className="flex-1 rounded-sm transition-all duration-150"
+                style={{ backgroundColor: scenarioColor, opacity: 0.8 }}
+                title={`${entry.scenario} (${entry.duration.toFixed(1)}s)`}
+              />
+            );
+          })}
+        </div>
       </div>
     </div>
   );

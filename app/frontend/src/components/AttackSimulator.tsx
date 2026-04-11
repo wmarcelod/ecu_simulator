@@ -7,7 +7,22 @@ interface AttackSimulatorProps {
   simulator: ECUSimulator;
 }
 
+interface AttackStats {
+  totalFramesInjected: number;
+  uniqueAttackIds: Set<number>;
+  firstAttackTime: number | null;
+  currentDoSRate: number;
+}
+
 const MAX_ATTACK_FRAMES = 100;
+
+interface PresetAttack {
+  id: string;
+  name: string;
+  description: string;
+  riskLevel: 'LOW' | 'MED' | 'HIGH' | 'CRITICAL';
+  execute: () => void;
+}
 
 export default function AttackSimulator({ simulator }: AttackSimulatorProps) {
   const { theme } = useTheme();
@@ -21,6 +36,7 @@ export default function AttackSimulator({ simulator }: AttackSimulatorProps) {
   // DoS Attack
   const [dosFrameId, setDosFrameId] = useState('0x100');
   const [dosRate, setDosRate] = useState('1000');
+  const [currentDoSRate, setCurrentDoSRate] = useState(0);
 
   // Fuzzing
   const [fuzzIdMin, setFuzzIdMin] = useState('0x100');
@@ -34,14 +50,37 @@ export default function AttackSimulator({ simulator }: AttackSimulatorProps) {
   // Replay
   const [replaySpeed, setReplaySpeed] = useState('1.0');
 
+  // Attack Stats
+  const [attackStats, setAttackStats] = useState<AttackStats>({
+    totalFramesInjected: 0,
+    uniqueAttackIds: new Set(),
+    firstAttackTime: null,
+    currentDoSRate: 0,
+  });
+
   const fuzzIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const animRef = useRef<number>(0);
 
   const updateAttackFrames = useCallback(() => {
     const frames = simulator.getAttackFrames();
-    setAttackFrames([...frames.slice(-MAX_ATTACK_FRAMES)]);
+    const framesSlice = [...frames.slice(-MAX_ATTACK_FRAMES)];
+    setAttackFrames(framesSlice);
     setDosActive(simulator.isDoSActive());
-  }, [simulator]);
+
+    // Update statistics
+    const uniqueIds = new Set<number>();
+    frames.forEach((frame) => uniqueIds.add(frame.id));
+    const firstTime = frames.length > 0 ? frames[0].timestamp : null;
+    const dosRateValue = simulator.isDoSActive() ? parseInt(dosRate) : 0;
+
+    setAttackStats({
+      totalFramesInjected: frames.length,
+      uniqueAttackIds: uniqueIds,
+      firstAttackTime: firstTime,
+      currentDoSRate: dosRateValue,
+    });
+    setCurrentDoSRate(dosRateValue);
+  }, [simulator, dosRate]);
 
   useEffect(() => {
     animRef.current = requestAnimationFrame(() => {
@@ -143,6 +182,27 @@ export default function AttackSimulator({ simulator }: AttackSimulatorProps) {
   const handleClearAttackFrames = () => {
     simulator.clearAttackFrames();
     setAttackFrames([]);
+    setAttackStats({
+      totalFramesInjected: 0,
+      uniqueAttackIds: new Set(),
+      firstAttackTime: null,
+      currentDoSRate: 0,
+    });
+  };
+
+  const getRiskLevelColor = (level: string) => {
+    switch (level) {
+      case 'LOW':
+        return t('bg-emerald-950/30 border-emerald-800/50 text-emerald-400', 'bg-emerald-50 border-emerald-200 text-emerald-700', theme);
+      case 'MED':
+        return t('bg-yellow-950/30 border-yellow-800/50 text-yellow-400', 'bg-yellow-50 border-yellow-200 text-yellow-700', theme);
+      case 'HIGH':
+        return t('bg-orange-950/30 border-orange-800/50 text-orange-400', 'bg-orange-50 border-orange-200 text-orange-700', theme);
+      case 'CRITICAL':
+        return t('bg-red-950/30 border-red-800/50 text-red-400', 'bg-red-50 border-red-200 text-red-700', theme);
+      default:
+        return t('bg-slate-950/30 border-slate-800/50 text-slate-400', 'bg-slate-50 border-slate-200 text-slate-700', theme);
+    }
   };
 
   const formatData = (data: Uint8Array) => {
@@ -152,6 +212,116 @@ export default function AttackSimulator({ simulator }: AttackSimulatorProps) {
     }
     return hex.trim();
   };
+
+  const executeEngineTakeover = () => {
+    try {
+      simulator.injectCANFrame(0x7e0, new Uint8Array([0x00, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00, 0x00]));
+      simulator.startDoSAttack(0x7e0, 5000);
+      setDosFrameId('0x7E0');
+      setDosRate('5000');
+      setDosActive(true);
+      updateAttackFrames();
+    } catch (e) {
+      alert('Engine Takeover preset failed');
+    }
+  };
+
+  const executeBrakeOverride = () => {
+    try {
+      simulator.injectCANFrame(0x7e2, new Uint8Array([0x00, 0x00, 0xFF, 0x01, 0x00, 0x00, 0x00, 0x00]));
+      updateAttackFrames();
+    } catch (e) {
+      alert('Brake Override preset failed');
+    }
+  };
+
+  const executeSpeedSpoof = () => {
+    try {
+      simulator.injectCANFrame(0x7e0, new Uint8Array([0x00, 0x00, 0x00, 0x00, 0xFF, 0x00, 0x00, 0x00]));
+      updateAttackFrames();
+    } catch (e) {
+      alert('Speed Spoof preset failed');
+    }
+  };
+
+  const executeStealthDTCClear = () => {
+    try {
+      simulator.injectCANFrame(0x7DF, new Uint8Array([0x02, 0x14, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]));
+      updateAttackFrames();
+    } catch (e) {
+      alert('Stealth DTC Clear preset failed');
+    }
+  };
+
+  const executeBusFlood = () => {
+    try {
+      const randomId = Math.floor(Math.random() * 0x800);
+      simulator.startDoSAttack(randomId, 5000);
+      setDosFrameId(`0x${randomId.toString(16).toUpperCase()}`);
+      setDosRate('5000');
+      setDosActive(true);
+      updateAttackFrames();
+    } catch (e) {
+      alert('Bus Flood preset failed');
+    }
+  };
+
+  const executeRandomFuzzing = () => {
+    try {
+      simulator.startFuzzing(0x100, 0x7FF, 10000);
+      setFuzzIdMin('0x100');
+      setFuzzIdMax('0x7FF');
+      setFuzzDuration('10000');
+      updateAttackFrames();
+    } catch (e) {
+      alert('Random Fuzzing preset failed');
+    }
+  };
+
+  const presetAttacks: PresetAttack[] = [
+    {
+      id: 'engine-takeover',
+      name: 'Engine Takeover',
+      description: 'Max RPM injection + DoS on 0x7E0',
+      riskLevel: 'CRITICAL',
+      execute: executeEngineTakeover,
+    },
+    {
+      id: 'brake-override',
+      name: 'Brake Override',
+      description: 'Inject brake pressure 0xFF + ABS active',
+      riskLevel: 'CRITICAL',
+      execute: executeBrakeOverride,
+    },
+    {
+      id: 'speed-spoof',
+      name: 'Speed Spoof',
+      description: 'Set speed byte to 0xFF (255 km/h)',
+      riskLevel: 'HIGH',
+      execute: executeSpeedSpoof,
+    },
+    {
+      id: 'stealth-dtc',
+      name: 'Stealth DTC Clear',
+      description: 'Inject OBD-II service 0x14 DTC clear',
+      riskLevel: 'HIGH',
+      execute: executeStealthDTCClear,
+    },
+    {
+      id: 'bus-flood',
+      name: 'Bus Flood',
+      description: 'DoS attack at 5000Hz on random ID',
+      riskLevel: 'MED',
+      execute: executeBusFlood,
+    },
+    {
+      id: 'random-fuzzing',
+      name: 'Random Fuzzing',
+      description: '10-second fuzzing on full ID range',
+      riskLevel: 'LOW',
+      execute: executeRandomFuzzing,
+    },
+  ];
 
   const bg = t('bg-[#111827]', 'bg-white', theme);
   const border = t('border-[#1e293b]', 'border-gray-200', theme);
@@ -167,6 +337,48 @@ export default function AttackSimulator({ simulator }: AttackSimulatorProps) {
         <div>
           <div className="text-[10px] font-mono text-red-400 uppercase font-semibold">Attack Simulation Mode</div>
           <div className="text-[9px] font-mono text-red-300 mt-0.5">For testing IDS/IPS systems only. Use responsibly.</div>
+        </div>
+      </div>
+
+      {/* Attack Presets Panel */}
+      <div className={`${bg} border ${border} rounded-md p-3`}>
+        <div className="flex items-center gap-2 mb-3">
+          <div className="w-1 h-3 bg-amber-500/70 rounded-full" />
+          <span className={`text-[10px] font-mono ${textLabel} uppercase tracking-widest`}>Quick Attack Presets</span>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+          {presetAttacks.map((preset) => (
+            <div
+              key={preset.id}
+              className={`border rounded-md p-2.5 flex flex-col gap-1.5 transition-all hover:shadow-md ${getRiskLevelColor(preset.riskLevel)}`}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex-1">
+                  <div className="text-[10px] font-mono font-semibold">{preset.name}</div>
+                  <div className={`text-[8px] font-mono mt-0.5 ${textMuted}`}>{preset.description}</div>
+                </div>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className={`text-[7px] font-mono font-bold uppercase px-1.5 py-0.5 rounded ${getRiskLevelColor(preset.riskLevel)}`}>
+                  {preset.riskLevel}
+                </span>
+                <button
+                  onClick={preset.execute}
+                  className={`h-6 px-2.5 text-[9px] font-mono uppercase rounded border transition-colors ${
+                    preset.riskLevel === 'CRITICAL'
+                      ? 'bg-red-950/40 border-red-800/40 text-red-400 hover:bg-red-950/60'
+                      : preset.riskLevel === 'HIGH'
+                        ? 'bg-orange-950/40 border-orange-800/40 text-orange-400 hover:bg-orange-950/60'
+                        : preset.riskLevel === 'MED'
+                          ? 'bg-yellow-950/40 border-yellow-800/40 text-yellow-400 hover:bg-yellow-950/60'
+                          : 'bg-emerald-950/40 border-emerald-800/40 text-emerald-400 hover:bg-emerald-950/60'
+                  }`}
+                >
+                  ▶ Launch
+                </button>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 
@@ -395,6 +607,45 @@ export default function AttackSimulator({ simulator }: AttackSimulatorProps) {
               ))}
             </div>
           )}
+        </div>
+      </div>
+
+      {/* Attack Statistics Summary */}
+      <div className={`${bg} border ${border} rounded-md p-3`}>
+        <div className="flex items-center gap-2 mb-3">
+          <div className="w-1 h-3 bg-purple-500/70 rounded-full" />
+          <span className={`text-[10px] font-mono ${textLabel} uppercase tracking-widest`}>Attack Statistics</span>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {/* Total Frames Injected */}
+          <div className={`${bg2} border ${border} rounded p-2`}>
+            <div className={`text-[8px] font-mono ${textMuted} uppercase mb-1`}>Total Frames</div>
+            <div className="text-[14px] font-mono font-semibold text-red-400">{attackStats.totalFramesInjected}</div>
+          </div>
+
+          {/* Unique Attack IDs */}
+          <div className={`${bg2} border ${border} rounded p-2`}>
+            <div className={`text-[8px] font-mono ${textMuted} uppercase mb-1`}>Unique IDs</div>
+            <div className="text-[14px] font-mono font-semibold text-amber-400">{attackStats.uniqueAttackIds.size}</div>
+          </div>
+
+          {/* Attack Duration */}
+          <div className={`${bg2} border ${border} rounded p-2`}>
+            <div className={`text-[8px] font-mono ${textMuted} uppercase mb-1`}>Duration (s)</div>
+            <div className="text-[14px] font-mono font-semibold text-blue-400">
+              {attackStats.firstAttackTime && attackStats.totalFramesInjected > 0
+                ? ((Date.now() - attackStats.firstAttackTime) / 1000).toFixed(1)
+                : '0.0'}
+            </div>
+          </div>
+
+          {/* Current DoS Rate */}
+          <div className={`${bg2} border ${border} rounded p-2`}>
+            <div className={`text-[8px] font-mono ${textMuted} uppercase mb-1`}>DoS Rate (Hz)</div>
+            <div className={`text-[14px] font-mono font-semibold ${dosActive ? 'text-red-400 animate-pulse' : 'text-slate-500'}`}>
+              {dosActive ? currentDoSRate : '—'}
+            </div>
+          </div>
         </div>
       </div>
     </div>

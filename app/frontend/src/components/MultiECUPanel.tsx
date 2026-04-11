@@ -10,9 +10,9 @@ interface MultiECUPanelProps {
 }
 
 const ECU_CONFIG = [
-  { name: 'Engine', address: 0x7E0, responseId: 0x7E8, color: '#4ade80', icon: '⚙' },
-  { name: 'Transmission', address: 0x7E1, responseId: 0x7E9, color: '#38bdf8', icon: '⚙' },
-  { name: 'ABS', address: 0x7E2, responseId: 0x7EA, color: '#f59e0b', icon: '⚙' },
+  { name: 'Engine', address: 0x7E0, responseId: 0x7E8, color: '#4ade80', accentClass: 'emerald', icon: '⚙' },
+  { name: 'Transmission', address: 0x7E1, responseId: 0x7E9, color: '#38bdf8', accentClass: 'blue', icon: '⚙' },
+  { name: 'ABS', address: 0x7E2, responseId: 0x7EA, color: '#f59e0b', accentClass: 'amber', icon: '⚙' },
 ];
 
 const DTC_DESC: Record<string, string> = {
@@ -57,6 +57,8 @@ export default function MultiECUPanel({ simulator }: MultiECUPanelProps) {
   const [selectedECU, setSelectedECU] = useState(0x7E0);
   const [transmissionState, setTransmissionState] = useState(simulator.getTransmissionState());
   const [absState, setAbsState] = useState(simulator.getABSState());
+  const [engineState, setEngineState] = useState(simulator.getState());
+  const [isRunning, setIsRunning] = useState(false);
 
   const refresh = useCallback(() => {
     const newStates: Record<number, { stored: string[]; pending: string[]; permanent: string[] }> = {};
@@ -66,6 +68,8 @@ export default function MultiECUPanel({ simulator }: MultiECUPanelProps) {
     setEcuStates(newStates);
     setTransmissionState(simulator.getTransmissionState());
     setAbsState(simulator.getABSState());
+    setEngineState(simulator.getState());
+    setIsRunning(simulator.isRunning());
   }, [simulator]);
 
   useEffect(() => {
@@ -89,9 +93,22 @@ export default function MultiECUPanel({ simulator }: MultiECUPanelProps) {
   };
 
   const bg = t('bg-[#111827]', 'bg-white', theme);
+  const bgSecondary = t('bg-[#0f172a]', 'bg-gray-50', theme);
   const border = t('border-[#1e293b]', 'border-gray-200', theme);
   const textMuted = t('text-slate-500', 'text-gray-500', theme);
   const textLabel = t('text-slate-400', 'text-gray-600', theme);
+
+  const getDTCIndicatorColor = (dtcCount: number) => {
+    if (dtcCount === 0) return 'bg-emerald-500/60';
+    if (dtcCount <= 2) return 'bg-amber-500/60';
+    return 'bg-red-500/60';
+  };
+
+  const getDTCIndicatorColorText = (dtcCount: number) => {
+    if (dtcCount === 0) return 'text-emerald-400';
+    if (dtcCount <= 2) return 'text-amber-400';
+    return 'text-red-400';
+  };
 
   const renderDTCList = (dtcs: string[], type: 'stored' | 'pending' | 'permanent', label: string, mode: string, color: string) => (
     <div className={`${bg} border ${border} rounded-md`}>
@@ -131,6 +148,155 @@ export default function MultiECUPanel({ simulator }: MultiECUPanelProps) {
 
   return (
     <div className="space-y-3">
+      {/* Network Topology Visualization */}
+      <style>{`
+        @keyframes pulse-flow {
+          0% { opacity: 0.4; }
+          50% { opacity: 1; }
+          100% { opacity: 0.4; }
+        }
+        .pulse-active {
+          animation: pulse-flow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+      `}</style>
+
+      <div className={`${bg} border ${border} rounded-md p-4`}>
+        <div className="flex items-center gap-2 mb-4">
+          <div className="w-1 h-3 bg-violet-500/70 rounded-full" />
+          <span className={`text-[10px] font-mono ${textLabel} uppercase tracking-widest`}>CAN Bus Network Topology</span>
+        </div>
+
+        {/* Horizontal CAN Bus Line with ECU Connectors */}
+        <div className="relative px-2 py-6">
+          {/* CAN Bus Main Line */}
+          <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-gradient-to-r from-violet-500/30 via-violet-500/60 to-violet-500/30 transform -translate-y-1/2" />
+
+          {/* ECU Nodes */}
+          <div className="flex justify-between items-start px-4">
+            {ECU_CONFIG.map((ecu) => {
+              const dtcs = ecuStates[ecu.address];
+              const totalCodes = (dtcs?.stored.length ?? 0) + (dtcs?.pending.length ?? 0) + (dtcs?.permanent.length ?? 0);
+
+              return (
+                <div key={ecu.address} className="flex flex-col items-center flex-1 max-w-[120px]">
+                  {/* Vertical Connector Line */}
+                  <div className={`w-0.5 h-5 ${isRunning ? 'pulse-active' : ''}`} style={{ backgroundColor: ecu.color }} />
+
+                  {/* ECU Node Card */}
+                  <div className={`${bgSecondary} border ${border} rounded p-2.5 w-full text-center relative`}>
+                    {/* DTC Status Indicator Dot */}
+                    <div className={`absolute top-1 right-1 w-2 h-2 rounded-full ${getDTCIndicatorColor(totalCodes)}`} />
+
+                    {/* ECU Name and Address */}
+                    <div className="text-[10px] font-mono font-semibold mb-1" style={{ color: ecu.color }}>
+                      {ecu.name}
+                    </div>
+                    <div className="text-[8px] font-mono text-slate-500 mb-1.5">
+                      0x{ecu.address.toString(16).toUpperCase()}
+                    </div>
+
+                    {/* DTC Count Badge */}
+                    <div className={`text-[9px] font-mono font-semibold ${getDTCIndicatorColorText(totalCodes)}`}>
+                      {totalCodes === 0 ? '0 DTCs' : `${totalCodes} DTC${totalCodes !== 1 ? 's' : ''}`}
+                    </div>
+
+                    {/* Activity Pulse */}
+                    {isRunning && (
+                      <div className="mt-1.5 flex items-center justify-center">
+                        <div className="w-1 h-1 rounded-full bg-emerald-400 pulse-active" />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* ECU State Overview Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        {/* Engine ECU Overview */}
+        <div className={`${bg} border ${border} rounded-md p-3`}>
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500/80" />
+            <span className="text-[9px] font-mono uppercase tracking-widest text-emerald-400">Engine ECU</span>
+          </div>
+          <div className="space-y-2 text-[10px]">
+            <div className="flex justify-between items-center">
+              <span className={textMuted}>RPM</span>
+              <span className="text-emerald-400 font-mono font-semibold">{Math.round(engineState.rpm)}</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className={textMuted}>Speed</span>
+              <span className="text-emerald-400 font-mono font-semibold">{engineState.speed.toFixed(1)} km/h</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className={textMuted}>Load</span>
+              <span className="text-emerald-400 font-mono font-semibold">{engineState.engineLoad.toFixed(1)}%</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className={textMuted}>Coolant</span>
+              <span className="text-emerald-400 font-mono font-semibold">{engineState.coolantTemp.toFixed(0)}°C</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Transmission ECU Overview */}
+        <div className={`${bg} border ${border} rounded-md p-3`}>
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-1.5 h-1.5 rounded-full bg-blue-500/80" />
+            <span className="text-[9px] font-mono uppercase tracking-widest text-blue-400">Transmission ECU</span>
+          </div>
+          <div className="space-y-2 text-[10px]">
+            <div className="flex justify-between items-center">
+              <span className={textMuted}>Gear</span>
+              <span className="text-blue-400 font-mono font-semibold">
+                {transmissionState.gear === 0 ? 'P' : transmissionState.gear === -1 ? 'R' : transmissionState.gear}
+              </span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className={textMuted}>Temperature</span>
+              <span className="text-blue-400 font-mono font-semibold">{transmissionState.temperature.toFixed(0)}°C</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className={textMuted}>Shift Count</span>
+              <span className="text-blue-400 font-mono font-semibold">{transmissionState.shiftCount}</span>
+            </div>
+            <div className="h-3" />
+          </div>
+        </div>
+
+        {/* ABS ECU Overview */}
+        <div className={`${bg} border ${border} rounded-md p-3`}>
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-1.5 h-1.5 rounded-full bg-amber-500/80" />
+            <span className="text-[9px] font-mono uppercase tracking-widest text-amber-400">ABS ECU</span>
+          </div>
+          <div className="space-y-2 text-[10px]">
+            <div className="flex justify-between items-center">
+              <span className={textMuted}>Wheel Avg</span>
+              <span className="text-amber-400 font-mono font-semibold">
+                {(
+                  (absState.wheelSpeedFL + absState.wheelSpeedFR + absState.wheelSpeedRL + absState.wheelSpeedRR) / 4
+                ).toFixed(0)} km/h
+              </span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className={textMuted}>Brake Press</span>
+              <span className="text-amber-400 font-mono font-semibold">{absState.brakePressure.toFixed(0)} bar</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className={textMuted}>ABS Active</span>
+              <span className={`font-mono font-semibold ${absState.absActive ? 'text-red-400' : 'text-emerald-400'}`}>
+                {absState.absActive ? 'YES' : 'NO'}
+              </span>
+            </div>
+            <div className="h-3" />
+          </div>
+        </div>
+      </div>
+
       {/* ECU Selector */}
       <div className={`${bg} border ${border} rounded-md p-3`}>
         <div className="flex items-center gap-2 mb-3">
@@ -165,56 +331,6 @@ export default function MultiECUPanel({ simulator }: MultiECUPanelProps) {
         </div>
       </div>
 
-      {/* ECU-specific state info */}
-      {selectedECU === 0x7E1 && (
-        <div className={`${bg} border ${border} rounded-md p-3`}>
-          <div className="text-[9px] font-mono uppercase tracking-widest text-slate-500 mb-2">Transmission State</div>
-          <div className="grid grid-cols-3 gap-2 text-[10px]">
-            <div className="border border-[#1e293b] rounded p-2">
-              <div className="text-slate-500 font-mono">Gear</div>
-              <div className="text-cyan-400 font-mono font-semibold text-[11px]">{transmissionState.gear}</div>
-            </div>
-            <div className="border border-[#1e293b] rounded p-2">
-              <div className="text-slate-500 font-mono">Temp</div>
-              <div className="text-cyan-400 font-mono font-semibold text-[11px]">{transmissionState.temperature}°C</div>
-            </div>
-            <div className="border border-[#1e293b] rounded p-2">
-              <div className="text-slate-500 font-mono">Shifts</div>
-              <div className="text-cyan-400 font-mono font-semibold text-[11px]">{transmissionState.shiftCount}</div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {selectedECU === 0x7E2 && (
-        <div className={`${bg} border ${border} rounded-md p-3`}>
-          <div className="text-[9px] font-mono uppercase tracking-widest text-slate-500 mb-2">ABS State</div>
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-[10px]">
-            <div className="border border-[#1e293b] rounded p-2">
-              <div className="text-slate-500 font-mono text-[8px]">Speed FL</div>
-              <div className="text-amber-400 font-mono font-semibold text-[11px]">{absState.wheelSpeedFL.toFixed(0)} km/h</div>
-            </div>
-            <div className="border border-[#1e293b] rounded p-2">
-              <div className="text-slate-500 font-mono text-[8px]">Speed FR</div>
-              <div className="text-amber-400 font-mono font-semibold text-[11px]">{absState.wheelSpeedFR.toFixed(0)} km/h</div>
-            </div>
-            <div className="border border-[#1e293b] rounded p-2">
-              <div className="text-slate-500 font-mono text-[8px]">Speed RL</div>
-              <div className="text-amber-400 font-mono font-semibold text-[11px]">{absState.wheelSpeedRL.toFixed(0)} km/h</div>
-            </div>
-            <div className="border border-[#1e293b] rounded p-2">
-              <div className="text-slate-500 font-mono text-[8px]">Speed RR</div>
-              <div className="text-amber-400 font-mono font-semibold text-[11px]">{absState.wheelSpeedRR.toFixed(0)} km/h</div>
-            </div>
-            <div className="border border-[#1e293b] rounded p-2">
-              <div className="text-slate-500 font-mono text-[8px]">ABS Active</div>
-              <div className={`font-mono font-semibold text-[11px] ${absState.absActive ? 'text-red-400' : 'text-emerald-400'}`}>
-                {absState.absActive ? 'YES' : 'NO'}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Add DTC */}
       <div className={`${bg} border ${border} rounded-md p-3`}>
