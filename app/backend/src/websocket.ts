@@ -205,7 +205,7 @@ export class WebSocketManager {
         await createLogAsync({
           sessionId: message.sessionId,
           timestamp: Date.now(),
-          commandType: message.commandType,
+          commandType: message.commandType!,
           command: message.command!,
           response,
           responseTime: Math.round(responseTime),
@@ -287,7 +287,7 @@ export class WebSocketManager {
       await createLogAsync({
         sessionId: commandMetadata.sessionId,
         timestamp: Date.now(),
-        commandType: (message.commandType || 'OBD2') as 'OBD2' | 'UDS' | 'CAN',
+        commandType: message.commandType!,
         command: '', // Response doesn't have the original command
         response: response || '',
         responseTime: responseTime || 0,
