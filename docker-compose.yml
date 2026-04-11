@@ -16,8 +16,8 @@ services:
       test: ["CMD", "node", "-e", "fetch('http://localhost:8000/api/health').then(r=>{if(!r.ok)throw 1;process.exit(0)}).catch(()=>process.exit(1))"]
       interval: 10s
       timeout: 5s
-      retries: 5
-      start_period: 15s
+      retries: 10
+      start_period: 30s
     networks:
       - dokploy-network
       - internal
@@ -34,11 +34,7 @@ services:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost/"]
-      interval: 10s
-      timeout: 3s
-      retries: 3
-      start_period: 10s
+      disable: true
     networks:
       - dokploy-network
       - internal
