@@ -287,7 +287,7 @@ export class WebSocketManager {
       await createLogAsync({
         sessionId: commandMetadata.sessionId,
         timestamp: Date.now(),
-        commandType: message.commandType ?? 'OBD2' as const,
+        commandType: (message.commandType || 'OBD2') as 'OBD2' | 'UDS' | 'CAN',
         command: '', // Response doesn't have the original command
         response: response || '',
         responseTime: responseTime || 0,
