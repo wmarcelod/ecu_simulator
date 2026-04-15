@@ -2072,6 +2072,10 @@ export class ECUSimulator {
     this.canFrameGenerationRate = Math.max(1, Math.min(hz, 100)); // Limit 1-100Hz
   }
 
+  public getCANFrameRate(): number {
+    return this.canFrameGenerationRate;
+  }
+
   public clearCANFrames() {
     this.canFrames = [];
   }

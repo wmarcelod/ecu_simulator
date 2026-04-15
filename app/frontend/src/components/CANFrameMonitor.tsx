@@ -13,25 +13,33 @@ const STATS_WINDOW_MS = 1000; // Calculate messages/sec over last 1 second
 export default function CANFrameMonitor({ simulator }: CANFrameMonitorProps) {
   const { theme } = useTheme();
   const [frames, setFrames] = useState<CANFrame[]>(simulator.getCANFrames());
-  const [rate, setRate] = useState(100);
+  const [rate, setRate] = useState(() => simulator.getCANFrameRate());
   const [filterById, setFilterById] = useState('');
   const [paused, setPaused] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const animRef = useRef<number>(0);
   const frameTimestampsRef = useRef<number[]>([]);
+  const lastProcessedFrameCountRef = useRef(0);
 
   const updateFrames = useCallback(() => {
     if (!paused) {
       const allFrames = simulator.getCANFrames();
       setFrames([...allFrames.slice(-MAX_FRAMES_DISPLAY)]);
 
-      // Track timestamps for metrics calculation
+      // Track only newly observed frames; re-counting the whole buffer on
+      // every animation frame inflates the traffic metrics.
       const now = Date.now();
-      const newTimestamps = allFrames.map(() => now);
+      const previousCount = lastProcessedFrameCountRef.current;
+      const newFrames =
+        previousCount > 0 && allFrames.length >= previousCount
+          ? allFrames.slice(previousCount)
+          : allFrames;
+      const newTimestamps = newFrames.map(() => now);
       frameTimestampsRef.current = [
         ...frameTimestampsRef.current.filter(ts => now - ts < STATS_WINDOW_MS),
         ...newTimestamps
       ];
+      lastProcessedFrameCountRef.current = allFrames.length;
 
       if (scrollRef.current) {
         scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -56,6 +64,8 @@ export default function CANFrameMonitor({ simulator }: CANFrameMonitorProps) {
   const handleClear = () => {
     simulator.clearCANFrames();
     setFrames([]);
+    frameTimestampsRef.current = [];
+    lastProcessedFrameCountRef.current = 0;
   };
 
   const bg = t('bg-[#111827]', 'bg-white', theme);
