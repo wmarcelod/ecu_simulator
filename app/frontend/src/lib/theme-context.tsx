@@ -8,16 +8,16 @@ interface ThemeContextValue {
 }
 
 const ThemeContext = createContext<ThemeContextValue>({
-  theme: 'dark',
+  theme: 'light',
   toggleTheme: () => {},
 });
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setTheme] = useState<Theme>(() => {
     if (typeof window !== 'undefined') {
-      return (localStorage.getItem('ecu-sim-theme') as Theme) || 'dark';
+      return (localStorage.getItem('ecu-sim-theme') as Theme) || 'light';
     }
-    return 'dark';
+    return 'light';
   });
 
   useEffect(() => {

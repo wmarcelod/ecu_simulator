@@ -99,3 +99,79 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* ============================================================
+ * Light-theme contrast polish (applied when document is in light mode).
+ *
+ * The app reuses many Tailwind 400-shade accent classes (text-emerald-400,
+ * text-cyan-400, text-amber-400, text-red-400, etc.) throughout dozens
+ * of components. On a dark background those shades are fine, but on the
+ * light theme (white / gray-50) they look washed out and are unreadable
+ * when the screenshots are embedded in the academic PDF.
+ *
+ * Rather than editing 85+ occurrences across 10 files, we override the
+ * four most common "bright" utility classes when the root element has
+ * data-theme="light" (set by ThemeProvider in theme-context.tsx).
+ * This shifts each hue ~200 steps darker, producing text that reads
+ * crisply on white and still prints legibly in grayscale.
+ * ============================================================ */
+html[data-theme='light'] .text-emerald-400 { color: #047857 !important; } /* emerald-700 */
+html[data-theme='light'] .text-emerald-500 { color: #047857 !important; }
+html[data-theme='light'] .text-emerald-300 { color: #059669 !important; } /* emerald-600 */
+html[data-theme='light'] .text-emerald-600 { color: #047857 !important; }
+
+html[data-theme='light'] .text-cyan-400    { color: #0e7490 !important; } /* cyan-700 */
+html[data-theme='light'] .text-cyan-500    { color: #0e7490 !important; }
+html[data-theme='light'] .text-cyan-300    { color: #0891b2 !important; } /* cyan-600 */
+
+html[data-theme='light'] .text-sky-400     { color: #0369a1 !important; } /* sky-700 */
+html[data-theme='light'] .text-sky-500     { color: #0369a1 !important; }
+html[data-theme='light'] .text-sky-300     { color: #0284c7 !important; } /* sky-600 */
+
+html[data-theme='light'] .text-amber-400   { color: #b45309 !important; } /* amber-700 */
+html[data-theme='light'] .text-amber-500   { color: #b45309 !important; }
+html[data-theme='light'] .text-amber-300   { color: #d97706 !important; } /* amber-600 */
+
+html[data-theme='light'] .text-red-400     { color: #b91c1c !important; } /* red-700 */
+html[data-theme='light'] .text-red-500     { color: #b91c1c !important; }
+html[data-theme='light'] .text-red-300     { color: #dc2626 !important; } /* red-600 */
+
+html[data-theme='light'] .text-orange-400  { color: #c2410c !important; } /* orange-700 */
+html[data-theme='light'] .text-orange-500  { color: #c2410c !important; }
+
+html[data-theme='light'] .text-green-400   { color: #15803d !important; } /* green-700 */
+html[data-theme='light'] .text-green-500   { color: #15803d !important; }
+
+html[data-theme='light'] .text-blue-400    { color: #1d4ed8 !important; } /* blue-700 */
+html[data-theme='light'] .text-blue-500    { color: #1d4ed8 !important; }
+
+html[data-theme='light'] .text-purple-400  { color: #7e22ce !important; } /* purple-700 */
+html[data-theme='light'] .text-purple-500  { color: #7e22ce !important; }
+
+html[data-theme='light'] .text-indigo-400  { color: #4338ca !important; } /* indigo-700 */
+html[data-theme='light'] .text-indigo-500  { color: #4338ca !important; }
+
+html[data-theme='light'] .text-violet-400  { color: #6d28d9 !important; } /* violet-700 */
+html[data-theme='light'] .text-violet-500  { color: #6d28d9 !important; }
+
+html[data-theme='light'] .text-slate-400   { color: #475569 !important; } /* slate-600 */
+html[data-theme='light'] .text-slate-500   { color: #334155 !important; } /* slate-700 */
+
+/* Very dark tinted backgrounds (used for "warning/alert" bars like
+ * bg-red-950/20, bg-amber-950/20) are nearly black on both themes.
+ * Brighten them on light mode so the boxes read as coloured callouts,
+ * not black bars. */
+html[data-theme='light'] .bg-red-950\/20     { background-color: #fef2f2 !important; } /* red-50 */
+html[data-theme='light'] .bg-amber-950\/20   { background-color: #fffbeb !important; } /* amber-50 */
+html[data-theme='light'] .bg-cyan-950\/20    { background-color: #ecfeff !important; } /* cyan-50 */
+html[data-theme='light'] .bg-emerald-950\/20 { background-color: #ecfdf5 !important; } /* emerald-50 */
+html[data-theme='light'] .bg-emerald-950\/40 { background-color: #d1fae5 !important; } /* emerald-100 */
+html[data-theme='light'] .bg-emerald-950\/60 { background-color: #a7f3d0 !important; } /* emerald-200 */
+html[data-theme='light'] .bg-red-950\/40     { background-color: #fee2e2 !important; } /* red-100 */
+html[data-theme='light'] .bg-red-950\/60     { background-color: #fecaca !important; } /* red-200 */
+
+html[data-theme='light'] .border-red-800\/40     { border-color: #fca5a5 !important; }
+html[data-theme='light'] .border-red-800\/30     { border-color: #fca5a5 !important; }
+html[data-theme='light'] .border-emerald-800\/40 { border-color: #6ee7b7 !important; }
+html[data-theme='light'] .border-amber-800\/30   { border-color: #fcd34d !important; }
+html[data-theme='light'] .border-cyan-800\/30    { border-color: #67e8f9 !important; }

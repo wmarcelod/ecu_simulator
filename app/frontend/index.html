@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="light">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/x-icon" href="https://public-frontend-cos.metadl.com/mgx/img/favicon_atoms.ico" />
@@ -11,6 +11,16 @@
     <meta property="og:title" content="ECU Simulator — Web-Based Engine Control Unit" />
     <meta property="og:description" content="Web-Based ECU Simulator with ELM327 protocol emulation, OBD-II diagnostics, and real-time sensor simulation" />
     <meta property="og:type" content="website" />
+
+    <!-- Apply saved theme immediately to avoid flash of wrong palette. -->
+    <script>
+      (function () {
+        try {
+          var t = localStorage.getItem('ecu-sim-theme') || 'light';
+          document.documentElement.setAttribute('data-theme', t);
+        } catch (e) { /* localStorage unavailable, keep default light */ }
+      })();
+    </script>
   </head>
 
   <body>
