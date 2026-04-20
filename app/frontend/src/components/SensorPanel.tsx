@@ -17,20 +17,20 @@ interface SensorConfig {
 
 // OBD-II full-range scales per sensor
 const SENSORS: SensorConfig[] = [
-  { key: 'rpm', label: 'RPM', unit: 'rpm', min: 0, max: 8000, step: 10, color: '#4ade80' },
-  { key: 'speed', label: 'SPEED', unit: 'km/h', min: 0, max: 255, step: 1, color: '#38bdf8' },
-  { key: 'coolantTemp', label: 'COOLANT', unit: '°C', min: -40, max: 215, step: 1, color: '#a3e635' },
-  { key: 'engineLoad', label: 'LOAD', unit: '%', min: 0, max: 100, step: 1, color: '#60a5fa' },
-  { key: 'throttle', label: 'THROTTLE', unit: '%', min: 0, max: 100, step: 1, color: '#2dd4bf' },
-  { key: 'intakeMAP', label: 'MAP', unit: 'kPa', min: 0, max: 255, step: 1, color: '#34d399' },
-  { key: 'mafRate', label: 'MAF', unit: 'g/s', min: 0, max: 655.35, step: 0.01, color: '#a78bfa' },
-  { key: 'timingAdvance', label: 'TIMING', unit: '°', min: -64, max: 63.5, step: 0.5, color: '#818cf8' },
-  { key: 'intakeAirTemp', label: 'IAT', unit: '°C', min: -40, max: 215, step: 1, color: '#fb923c' },
-  { key: 'fuelLevel', label: 'FUEL', unit: '%', min: 0, max: 100, step: 0.1, color: '#fbbf24' },
-  { key: 'ambientTemp', label: 'AMBIENT', unit: '°C', min: -40, max: 215, step: 1, color: '#f472b6' },
-  { key: 'controlVoltage', label: 'VOLTAGE', unit: 'V', min: 0, max: 16, step: 0.1, color: '#c084fc' },
-  { key: 'oilTemp', label: 'OIL TEMP', unit: '°C', min: -40, max: 215, step: 1, color: '#fb7185' },
-  { key: 'baroPressure', label: 'BARO', unit: 'kPa', min: 0, max: 255, step: 1, color: '#94a3b8' },
+  { key: 'rpm', label: 'RPM', unit: 'rpm', min: 0, max: 8000, step: 10, color: '#15803D' },
+  { key: 'speed', label: 'SPEED', unit: 'km/h', min: 0, max: 255, step: 1, color: '#1D4ED8' },
+  { key: 'coolantTemp', label: 'COOLANT', unit: '°C', min: -40, max: 215, step: 1, color: '#15803D' },
+  { key: 'engineLoad', label: 'LOAD', unit: '%', min: 0, max: 100, step: 1, color: '#1D4ED8' },
+  { key: 'throttle', label: 'THROTTLE', unit: '%', min: 0, max: 100, step: 1, color: '#0F766E' },
+  { key: 'intakeMAP', label: 'MAP', unit: 'kPa', min: 0, max: 255, step: 1, color: '#0F766E' },
+  { key: 'mafRate', label: 'MAF', unit: 'g/s', min: 0, max: 655.35, step: 0.01, color: '#7E22CE' },
+  { key: 'timingAdvance', label: 'TIMING', unit: '°', min: -64, max: 63.5, step: 0.5, color: '#4338CA' },
+  { key: 'intakeAirTemp', label: 'IAT', unit: '°C', min: -40, max: 215, step: 1, color: '#C2410C' },
+  { key: 'fuelLevel', label: 'FUEL', unit: '%', min: 0, max: 100, step: 0.1, color: '#B45309' },
+  { key: 'ambientTemp', label: 'AMBIENT', unit: '°C', min: -40, max: 215, step: 1, color: '#BE185D' },
+  { key: 'controlVoltage', label: 'VOLTAGE', unit: 'V', min: 0, max: 16, step: 0.1, color: '#7E22CE' },
+  { key: 'oilTemp', label: 'OIL TEMP', unit: '°C', min: -40, max: 215, step: 1, color: '#991B1B' },
+  { key: 'baroPressure', label: 'BARO', unit: 'kPa', min: 0, max: 255, step: 1, color: '#475569' },
 ];
 
 const MAX_HISTORY = 60;

@@ -87,12 +87,12 @@ export default function CANFrameMonitor({ simulator }: CANFrameMonitorProps) {
   };
 
   const getDataColor = (id: number) => {
-    if (id >= 0x100 && id <= 0x1FF) return '#4ade80'; // Engine
-    if (id >= 0x200 && id <= 0x2FF) return '#38bdf8'; // Powertrain
-    if (id >= 0x300 && id <= 0x3FF) return '#f59e0b'; // Diagnostic
-    if (id >= 0x400 && id <= 0x4FF) return '#a78bfa'; // Body
-    if (id >= 0x500 && id <= 0x7FF) return '#2dd4bf'; // Standard
-    return '#ef4444'; // Unknown/Attack
+    if (id >= 0x100 && id <= 0x1FF) return '#15803D'; // Engine
+    if (id >= 0x200 && id <= 0x2FF) return '#1D4ED8'; // Powertrain
+    if (id >= 0x300 && id <= 0x3FF) return '#B45309'; // Diagnostic
+    if (id >= 0x400 && id <= 0x4FF) return '#7E22CE'; // Body
+    if (id >= 0x500 && id <= 0x7FF) return '#0F766E'; // Standard
+    return '#991B1B'; // Unknown/Attack
   };
 
   const getCategoryLabel = (id: number): string => {

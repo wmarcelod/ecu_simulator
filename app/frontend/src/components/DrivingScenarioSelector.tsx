@@ -20,11 +20,11 @@ interface ScenarioTimelineEntry {
 }
 
 const SCENARIOS: Array<{ id: DrivingScenario; label: string; icon: string; description: string; color: string }> = [
-  { id: 'idle', label: 'IDLE', icon: '●', description: 'Engine idle, no motion', color: '#94a3b8' },
-  { id: 'city', label: 'CITY', icon: '⤡', description: 'Stop-and-go urban driving', color: '#38bdf8' },
-  { id: 'highway', label: 'HIGHWAY', icon: '▶', description: 'Steady cruising at speed', color: '#4ade80' },
-  { id: 'aggressive', label: 'AGGRESSIVE', icon: '⚡', description: 'Hard acceleration and braking', color: '#ef4444' },
-  { id: 'eco', label: 'ECO', icon: '♻', description: 'Fuel-efficient smooth driving', color: '#a3e635' },
+  { id: 'idle', label: 'IDLE', icon: '●', description: 'Engine idle, no motion', color: '#475569' },
+  { id: 'city', label: 'CITY', icon: '⤡', description: 'Stop-and-go urban driving', color: '#1D4ED8' },
+  { id: 'highway', label: 'HIGHWAY', icon: '▶', description: 'Steady cruising at speed', color: '#15803D' },
+  { id: 'aggressive', label: 'AGGRESSIVE', icon: '⚡', description: 'Hard acceleration and braking', color: '#991B1B' },
+  { id: 'eco', label: 'ECO', icon: '♻', description: 'Fuel-efficient smooth driving', color: '#0F766E' },
 ];
 
 // Mini gauge component for telemetry

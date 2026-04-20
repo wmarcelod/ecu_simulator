@@ -22,7 +22,7 @@ interface GaugeProps {
   isManual?: boolean;
 }
 
-function TelemetryGauge({ value, min, max, label, unit, color = '#4ade80', decimals = 0, warning, danger, isManual }: GaugeProps) {
+function TelemetryGauge({ value, min, max, label, unit, color = '#15803D', decimals = 0, warning, danger, isManual }: GaugeProps) {
   const { theme } = useTheme();
   const percentage = Math.max(0, Math.min(1, (value - min) / (max - min)));
   const radius = 40;
@@ -32,12 +32,12 @@ function TelemetryGauge({ value, min, max, label, unit, color = '#4ade80', decim
   const rot = 144;
 
   let activeColor = color;
-  if (isManual) activeColor = '#fbbf24';
-  else if (danger !== undefined && value >= danger) activeColor = '#ef4444';
-  else if (warning !== undefined && value >= warning) activeColor = '#f59e0b';
+  if (isManual) activeColor = '#B45309';
+  else if (danger !== undefined && value >= danger) activeColor = '#991B1B';
+  else if (warning !== undefined && value >= warning) activeColor = '#B45309';
 
-  const tickStroke = theme === 'dark' ? '#334155' : '#d1d5db';
-  const trackStroke = theme === 'dark' ? '#1e293b' : '#e5e7eb';
+  const tickStroke = theme === 'dark' ? '#8DA2BE' : '#8DA2BE';
+  const trackStroke = theme === 'dark' ? '#CBD5E1' : '#CBD5E1';
 
   const ticks = [];
   const tickCount = 8;
@@ -74,7 +74,7 @@ function TelemetryGauge({ value, min, max, label, unit, color = '#4ade80', decim
 // ============================================================
 // Data Row
 // ============================================================
-function DataRow({ label, value, unit, color = '#94a3b8' }: { label: string; value: string; unit?: string; color?: string }) {
+function DataRow({ label, value, unit, color = '#1A2332' }: { label: string; value: string; unit?: string; color?: string }) {
   const { theme } = useTheme();
   return (
     <div className={`flex items-center justify-between py-1.5 px-2.5 border-b last:border-b-0 ${theme === 'dark' ? 'border-[#1e293b]' : 'border-gray-100'}`}>
@@ -158,7 +158,7 @@ export default function Dashboard({ simulator, serialStatus, onConnectSerial, on
   };
 
   const profile = simulator.getProfile();
-  const serialColor = serialStatus === 'connected' ? '#4ade80' : serialStatus === 'error' ? '#ef4444' : '#475569';
+  const serialColor = serialStatus === 'connected' ? '#15803D' : serialStatus === 'error' ? '#991B1B' : '#475569';
   const formatTime = (seconds: number) => { const m = Math.floor(seconds / 60); const s = seconds % 60; return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`; };
   const isManual = (key: string) => manualSensors.includes(key);
 
@@ -221,13 +221,13 @@ export default function Dashboard({ simulator, serialStatus, onConnectSerial, on
           {running && <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse ml-auto" />}
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 justify-items-center">
-          <TelemetryGauge value={state.rpm} min={0} max={profile.pidRanges.rpm?.max ?? 8000} label="RPM" unit="rpm" color="#4ade80" warning={(profile.pidRanges.rpm?.max ?? 8000) * 0.75} danger={(profile.pidRanges.rpm?.max ?? 8000) * 0.9} isManual={isManual('rpm')} />
-          <TelemetryGauge value={state.speed} min={0} max={profile.pidRanges.speed?.max ?? 280} label="Speed" unit="km/h" color="#38bdf8" isManual={isManual('speed')} />
-          <TelemetryGauge value={state.coolantTemp} min={0} max={150} label="Coolant" unit="°C" color="#a3e635" warning={100} danger={110} isManual={isManual('coolantTemp')} />
-          <TelemetryGauge value={state.engineLoad} min={0} max={100} label="Load" unit="%" color="#60a5fa" isManual={isManual('engineLoad')} />
-          <TelemetryGauge value={state.throttle} min={0} max={100} label="Throttle" unit="%" color="#2dd4bf" isManual={isManual('throttle')} />
-          <TelemetryGauge value={state.intakeMAP} min={0} max={profile.pidRanges.intakeMAP?.max ?? 255} label="MAP" unit="kPa" color="#34d399" isManual={isManual('intakeMAP')} />
-          <TelemetryGauge value={state.mafRate} min={0} max={profile.pidRanges.mafRate?.max ?? 655} label="MAF" unit="g/s" color="#a78bfa" decimals={1} isManual={isManual('mafRate')} />
+          <TelemetryGauge value={state.rpm} min={0} max={profile.pidRanges.rpm?.max ?? 8000} label="RPM" unit="rpm" color="#15803D" warning={(profile.pidRanges.rpm?.max ?? 8000) * 0.75} danger={(profile.pidRanges.rpm?.max ?? 8000) * 0.9} isManual={isManual('rpm')} />
+          <TelemetryGauge value={state.speed} min={0} max={profile.pidRanges.speed?.max ?? 280} label="Speed" unit="km/h" color="#1D4ED8" isManual={isManual('speed')} />
+          <TelemetryGauge value={state.coolantTemp} min={0} max={150} label="Coolant" unit="°C" color="#15803D" warning={100} danger={110} isManual={isManual('coolantTemp')} />
+          <TelemetryGauge value={state.engineLoad} min={0} max={100} label="Load" unit="%" color="#1D4ED8" isManual={isManual('engineLoad')} />
+          <TelemetryGauge value={state.throttle} min={0} max={100} label="Throttle" unit="%" color="#0F766E" isManual={isManual('throttle')} />
+          <TelemetryGauge value={state.intakeMAP} min={0} max={profile.pidRanges.intakeMAP?.max ?? 255} label="MAP" unit="kPa" color="#0F766E" isManual={isManual('intakeMAP')} />
+          <TelemetryGauge value={state.mafRate} min={0} max={profile.pidRanges.mafRate?.max ?? 655} label="MAF" unit="g/s" color="#7E22CE" decimals={1} isManual={isManual('mafRate')} />
         </div>
       </div>
 
@@ -235,24 +235,24 @@ export default function Dashboard({ simulator, serialStatus, onConnectSerial, on
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <div className={`${bg} border ${border} rounded-md`}>
           <div className={`px-2.5 py-1.5 border-b ${border}`}><span className={`text-[9px] font-mono ${textMuted} uppercase tracking-widest`}>Engine Parameters</span></div>
-          <DataRow label="Timing Adv" value={state.timingAdvance.toFixed(1)} unit="°" color={isManual('timingAdvance') ? '#fbbf24' : theme === 'dark' ? '#94a3b8' : '#4b5563'} />
-          <DataRow label="Intake Air" value={state.intakeAirTemp.toFixed(1)} unit="°C" color={isManual('intakeAirTemp') ? '#fbbf24' : theme === 'dark' ? '#94a3b8' : '#4b5563'} />
-          <DataRow label="Oil Temp" value={state.oilTemp.toFixed(1)} unit="°C" color={isManual('oilTemp') ? '#fbbf24' : state.oilTemp > 120 ? '#f59e0b' : theme === 'dark' ? '#94a3b8' : '#4b5563'} />
-          <DataRow label="Baro Press" value={state.baroPressure.toFixed(0)} unit="kPa" color={isManual('baroPressure') ? '#fbbf24' : theme === 'dark' ? '#94a3b8' : '#4b5563'} />
+          <DataRow label="Timing Adv" value={state.timingAdvance.toFixed(1)} unit="°" color={isManual('timingAdvance') ? '#B45309' : '#1A2332'} />
+          <DataRow label="Intake Air" value={state.intakeAirTemp.toFixed(1)} unit="°C" color={isManual('intakeAirTemp') ? '#B45309' : '#1A2332'} />
+          <DataRow label="Oil Temp" value={state.oilTemp.toFixed(1)} unit="°C" color={isManual('oilTemp') ? '#B45309' : state.oilTemp > 120 ? '#B45309' : '#1A2332'} />
+          <DataRow label="Baro Press" value={state.baroPressure.toFixed(0)} unit="kPa" color={isManual('baroPressure') ? '#B45309' : '#1A2332'} />
         </div>
         <div className={`${bg} border ${border} rounded-md`}>
           <div className={`px-2.5 py-1.5 border-b ${border}`}><span className={`text-[9px] font-mono ${textMuted} uppercase tracking-widest`}>Vehicle Status</span></div>
-          <DataRow label="Fuel Level" value={state.fuelLevel.toFixed(1)} unit="%" color={isManual('fuelLevel') ? '#fbbf24' : state.fuelLevel < 15 ? '#f59e0b' : theme === 'dark' ? '#94a3b8' : '#4b5563'} />
-          <DataRow label="Battery" value={state.controlVoltage.toFixed(2)} unit="V" color={isManual('controlVoltage') ? '#fbbf24' : state.controlVoltage < 12.5 ? '#f59e0b' : theme === 'dark' ? '#94a3b8' : '#4b5563'} />
-          <DataRow label="Ambient" value={state.ambientTemp.toFixed(1)} unit="°C" color={isManual('ambientTemp') ? '#fbbf24' : theme === 'dark' ? '#94a3b8' : '#4b5563'} />
-          <DataRow label="Run Time" value={formatTime(state.runTime)} color={theme === 'dark' ? '#94a3b8' : '#4b5563'} />
+          <DataRow label="Fuel Level" value={state.fuelLevel.toFixed(1)} unit="%" color={isManual('fuelLevel') ? '#B45309' : state.fuelLevel < 15 ? '#B45309' : '#1A2332'} />
+          <DataRow label="Battery" value={state.controlVoltage.toFixed(2)} unit="V" color={isManual('controlVoltage') ? '#B45309' : state.controlVoltage < 12.5 ? '#B45309' : '#1A2332'} />
+          <DataRow label="Ambient" value={state.ambientTemp.toFixed(1)} unit="°C" color={isManual('ambientTemp') ? '#B45309' : '#1A2332'} />
+          <DataRow label="Run Time" value={formatTime(state.runTime)} color="#1A2332" />
         </div>
         <div className={`${bg} border ${border} rounded-md`}>
           <div className={`px-2.5 py-1.5 border-b ${border}`}><span className={`text-[9px] font-mono ${textMuted} uppercase tracking-widest`}>Vehicle Identity</span></div>
-          <DataRow label="VIN" value={profile.vin} color={theme === 'dark' ? '#64748b' : '#6b7280'} />
-          <DataRow label="Cal ID" value={profile.calibrationId} color={theme === 'dark' ? '#64748b' : '#6b7280'} />
-          <DataRow label="Protocol" value="ISO 15765-4" color={theme === 'dark' ? '#64748b' : '#6b7280'} />
-          <DataRow label="Type" value={profile.type.toUpperCase()} color={theme === 'dark' ? '#64748b' : '#6b7280'} />
+          <DataRow label="VIN" value={profile.vin} color="#475569" />
+          <DataRow label="Cal ID" value={profile.calibrationId} color="#475569" />
+          <DataRow label="Protocol" value="ISO 15765-4" color="#475569" />
+          <DataRow label="Type" value={profile.type.toUpperCase()} color="#475569" />
         </div>
       </div>
     </div>

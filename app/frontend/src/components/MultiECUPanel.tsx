@@ -10,9 +10,9 @@ interface MultiECUPanelProps {
 }
 
 const ECU_CONFIG = [
-  { name: 'Engine', address: 0x7E0, responseId: 0x7E8, color: '#4ade80', accentClass: 'emerald', icon: '⚙' },
-  { name: 'Transmission', address: 0x7E1, responseId: 0x7E9, color: '#38bdf8', accentClass: 'blue', icon: '⚙' },
-  { name: 'ABS', address: 0x7E2, responseId: 0x7EA, color: '#f59e0b', accentClass: 'amber', icon: '⚙' },
+  { name: 'Engine', address: 0x7E0, responseId: 0x7E8, color: '#15803D', accentClass: 'emerald', icon: '⚙' },
+  { name: 'Transmission', address: 0x7E1, responseId: 0x7E9, color: '#1D4ED8', accentClass: 'blue', icon: '⚙' },
+  { name: 'ABS', address: 0x7E2, responseId: 0x7EA, color: '#B45309', accentClass: 'amber', icon: '⚙' },
 ];
 
 const DTC_DESC: Record<string, string> = {

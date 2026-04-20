@@ -1,18 +1,18 @@
 import { useTheme, t } from '@/lib/theme-context';
 
 const CONNECTIONS = [
-  { arduino: 'D13 (SCK)', mcp: 'SCK', color: '#f59e0b', desc: 'SPI Clock' },
-  { arduino: 'D12 (MISO)', mcp: 'SO', color: '#38bdf8', desc: 'SPI Master In Slave Out' },
-  { arduino: 'D11 (MOSI)', mcp: 'SI', color: '#4ade80', desc: 'SPI Master Out Slave In' },
-  { arduino: 'D10 (SS)', mcp: 'CS', color: '#a78bfa', desc: 'SPI Chip Select' },
-  { arduino: 'D2 (INT0)', mcp: 'INT', color: '#fb7185', desc: 'Interrupt (CAN message received)' },
-  { arduino: '5V', mcp: 'VCC', color: '#ef4444', desc: 'Power Supply 5V' },
-  { arduino: 'GND', mcp: 'GND', color: '#64748b', desc: 'Ground' },
+  { arduino: 'D13 (SCK)', mcp: 'SCK', color: '#B45309', desc: 'SPI Clock' },
+  { arduino: 'D12 (MISO)', mcp: 'SO', color: '#1D4ED8', desc: 'SPI Master In Slave Out' },
+  { arduino: 'D11 (MOSI)', mcp: 'SI', color: '#15803D', desc: 'SPI Master Out Slave In' },
+  { arduino: 'D10 (SS)', mcp: 'CS', color: '#7E22CE', desc: 'SPI Chip Select' },
+  { arduino: 'D2 (INT0)', mcp: 'INT', color: '#0F766E', desc: 'Interrupt (CAN message received)' },
+  { arduino: '5V', mcp: 'VCC', color: '#991B1B', desc: 'Power Supply 5V' },
+  { arduino: 'GND', mcp: 'GND', color: '#475569', desc: 'Ground' },
 ];
 
 const CAN_BUS = [
-  { pin: 'CANH', desc: 'CAN Bus High', color: '#f59e0b' },
-  { pin: 'CANL', desc: 'CAN Bus Low', color: '#38bdf8' },
+  { pin: 'CANH', desc: 'CAN Bus High', color: '#B45309' },
+  { pin: 'CANL', desc: 'CAN Bus Low', color: '#1D4ED8' },
 ];
 
 export default function SchematicPanel() {
