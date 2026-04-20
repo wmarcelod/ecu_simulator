@@ -157,21 +157,105 @@ html[data-theme='light'] .text-violet-500  { color: #6d28d9 !important; }
 html[data-theme='light'] .text-slate-400   { color: #475569 !important; } /* slate-600 */
 html[data-theme='light'] .text-slate-500   { color: #334155 !important; } /* slate-700 */
 
+/* A handful of components (CANFrameMonitor, some status strips) use the
+ * dark-navy hex classes bg-[#0f172a] / bg-[#111827] / bg-[#1e293b] directly
+ * instead of going through the t() helper. Neutralize them in light mode. */
+html[data-theme='light'] .bg-\[\#0f172a\]      { background-color: #f9fafb !important; } /* gray-50 */
+html[data-theme='light'] .bg-\[\#0f172a\]\/50  { background-color: #f9fafb !important; }
+html[data-theme='light'] .bg-\[\#111827\]      { background-color: #ffffff !important; }
+html[data-theme='light'] .bg-\[\#1e293b\]      { background-color: #f1f5f9 !important; }
+html[data-theme='light'] .hover\:bg-\[\#1e293b\]:hover { background-color: #f1f5f9 !important; }
+html[data-theme='light'] .border-\[\#1e293b\]       { border-color: #e5e7eb !important; }
+html[data-theme='light'] .border-\[\#1e293b\]\/30   { border-color: #e5e7eb !important; }
+html[data-theme='light'] .border-\[\#1e293b\]\/50   { border-color: #d1d5db !important; }
+
 /* Very dark tinted backgrounds (used for "warning/alert" bars like
  * bg-red-950/20, bg-amber-950/20) are nearly black on both themes.
  * Brighten them on light mode so the boxes read as coloured callouts,
- * not black bars. */
-html[data-theme='light'] .bg-red-950\/20     { background-color: #fef2f2 !important; } /* red-50 */
-html[data-theme='light'] .bg-amber-950\/20   { background-color: #fffbeb !important; } /* amber-50 */
-html[data-theme='light'] .bg-cyan-950\/20    { background-color: #ecfeff !important; } /* cyan-50 */
-html[data-theme='light'] .bg-emerald-950\/20 { background-color: #ecfdf5 !important; } /* emerald-50 */
-html[data-theme='light'] .bg-emerald-950\/40 { background-color: #d1fae5 !important; } /* emerald-100 */
-html[data-theme='light'] .bg-emerald-950\/60 { background-color: #a7f3d0 !important; } /* emerald-200 */
+ * not black bars. We cover the full opacity ladder (/20, /30, /40, /60, /80)
+ * used throughout the app. */
+html[data-theme='light'] .bg-red-950\/20,
+html[data-theme='light'] .bg-red-950\/30     { background-color: #fef2f2 !important; } /* red-50 */
 html[data-theme='light'] .bg-red-950\/40     { background-color: #fee2e2 !important; } /* red-100 */
 html[data-theme='light'] .bg-red-950\/60     { background-color: #fecaca !important; } /* red-200 */
+html[data-theme='light'] .bg-red-950\/80     { background-color: #fca5a5 !important; } /* red-300 */
 
-html[data-theme='light'] .border-red-800\/40     { border-color: #fca5a5 !important; }
-html[data-theme='light'] .border-red-800\/30     { border-color: #fca5a5 !important; }
-html[data-theme='light'] .border-emerald-800\/40 { border-color: #6ee7b7 !important; }
-html[data-theme='light'] .border-amber-800\/30   { border-color: #fcd34d !important; }
-html[data-theme='light'] .border-cyan-800\/30    { border-color: #67e8f9 !important; }
+html[data-theme='light'] .bg-amber-950\/20,
+html[data-theme='light'] .bg-amber-950\/30   { background-color: #fffbeb !important; } /* amber-50 */
+html[data-theme='light'] .bg-amber-950\/40   { background-color: #fef3c7 !important; } /* amber-100 */
+html[data-theme='light'] .bg-amber-950\/60   { background-color: #fde68a !important; } /* amber-200 */
+
+html[data-theme='light'] .bg-orange-950\/20,
+html[data-theme='light'] .bg-orange-950\/30  { background-color: #fff7ed !important; } /* orange-50 */
+html[data-theme='light'] .bg-orange-950\/40  { background-color: #ffedd5 !important; } /* orange-100 */
+html[data-theme='light'] .bg-orange-950\/60  { background-color: #fed7aa !important; } /* orange-200 */
+
+html[data-theme='light'] .bg-yellow-950\/20,
+html[data-theme='light'] .bg-yellow-950\/30  { background-color: #fefce8 !important; } /* yellow-50 */
+html[data-theme='light'] .bg-yellow-950\/40  { background-color: #fef9c3 !important; } /* yellow-100 */
+html[data-theme='light'] .bg-yellow-950\/60  { background-color: #fef08a !important; } /* yellow-200 */
+
+html[data-theme='light'] .bg-green-950\/20,
+html[data-theme='light'] .bg-green-950\/30   { background-color: #f0fdf4 !important; }
+html[data-theme='light'] .bg-green-950\/40   { background-color: #dcfce7 !important; }
+
+html[data-theme='light'] .bg-emerald-950\/20,
+html[data-theme='light'] .bg-emerald-950\/30 { background-color: #ecfdf5 !important; } /* emerald-50 */
+html[data-theme='light'] .bg-emerald-950\/40 { background-color: #d1fae5 !important; } /* emerald-100 */
+html[data-theme='light'] .bg-emerald-950\/60 { background-color: #a7f3d0 !important; } /* emerald-200 */
+
+html[data-theme='light'] .bg-cyan-950\/20,
+html[data-theme='light'] .bg-cyan-950\/30    { background-color: #ecfeff !important; } /* cyan-50 */
+html[data-theme='light'] .bg-cyan-950\/40    { background-color: #cffafe !important; } /* cyan-100 */
+
+html[data-theme='light'] .bg-sky-950\/20,
+html[data-theme='light'] .bg-sky-950\/30     { background-color: #f0f9ff !important; }
+html[data-theme='light'] .bg-sky-950\/40     { background-color: #e0f2fe !important; }
+
+html[data-theme='light'] .bg-blue-950\/20,
+html[data-theme='light'] .bg-blue-950\/30    { background-color: #eff6ff !important; }
+html[data-theme='light'] .bg-blue-950\/40    { background-color: #dbeafe !important; }
+
+html[data-theme='light'] .bg-purple-950\/20,
+html[data-theme='light'] .bg-purple-950\/30  { background-color: #faf5ff !important; }
+html[data-theme='light'] .bg-purple-950\/40  { background-color: #f3e8ff !important; }
+
+html[data-theme='light'] .bg-slate-950\/20,
+html[data-theme='light'] .bg-slate-950\/30   { background-color: #f8fafc !important; }
+html[data-theme='light'] .bg-slate-950\/40   { background-color: #f1f5f9 !important; }
+
+/* Tinted borders -800/XX become weak tinted lines in light mode */
+html[data-theme='light'] .border-red-800\/30,
+html[data-theme='light'] .border-red-800\/40,
+html[data-theme='light'] .border-red-800\/50,
+html[data-theme='light'] .border-red-800\/60     { border-color: #fca5a5 !important; } /* red-300 */
+html[data-theme='light'] .border-amber-800\/30,
+html[data-theme='light'] .border-amber-800\/40,
+html[data-theme='light'] .border-amber-800\/50   { border-color: #fcd34d !important; } /* amber-300 */
+html[data-theme='light'] .border-orange-800\/30,
+html[data-theme='light'] .border-orange-800\/40,
+html[data-theme='light'] .border-orange-800\/50  { border-color: #fdba74 !important; } /* orange-300 */
+html[data-theme='light'] .border-yellow-800\/30,
+html[data-theme='light'] .border-yellow-800\/40,
+html[data-theme='light'] .border-yellow-800\/50  { border-color: #fde047 !important; } /* yellow-300 */
+html[data-theme='light'] .border-emerald-800\/30,
+html[data-theme='light'] .border-emerald-800\/40,
+html[data-theme='light'] .border-emerald-800\/50 { border-color: #6ee7b7 !important; } /* emerald-300 */
+html[data-theme='light'] .border-cyan-800\/30,
+html[data-theme='light'] .border-cyan-800\/40,
+html[data-theme='light'] .border-cyan-800\/50    { border-color: #67e8f9 !important; } /* cyan-300 */
+html[data-theme='light'] .border-sky-800\/30,
+html[data-theme='light'] .border-sky-800\/40,
+html[data-theme='light'] .border-sky-800\/50     { border-color: #7dd3fc !important; }
+html[data-theme='light'] .border-blue-800\/30,
+html[data-theme='light'] .border-blue-800\/40,
+html[data-theme='light'] .border-blue-800\/50    { border-color: #93c5fd !important; }
+html[data-theme='light'] .border-green-800\/30,
+html[data-theme='light'] .border-green-800\/40,
+html[data-theme='light'] .border-green-800\/50   { border-color: #86efac !important; }
+html[data-theme='light'] .border-purple-800\/30,
+html[data-theme='light'] .border-purple-800\/40,
+html[data-theme='light'] .border-purple-800\/50  { border-color: #d8b4fe !important; }
+html[data-theme='light'] .border-slate-800\/30,
+html[data-theme='light'] .border-slate-800\/40,
+html[data-theme='light'] .border-slate-800\/50   { border-color: #cbd5e1 !important; }
