@@ -31,16 +31,18 @@ const SCENARIOS: Array<{ id: DrivingScenario; label: string; icon: string; descr
 function MiniGauge({ label, value, max, color }: { label: string; value: number; max: number; color: string }) {
   const percent = Math.min(100, (value / max) * 100);
   return (
-    <div className="flex flex-col gap-1 items-center flex-1">
+    <div className="flex flex-col gap-1 min-w-0">
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="text-[9px] font-mono text-slate-500 uppercase tracking-wider">{label}</span>
+        <span className="text-[10px] font-mono font-semibold" style={{ color }}>
+          {Math.round(value)}
+        </span>
+      </div>
       <div className="w-full h-1.5 rounded-full bg-slate-700 overflow-hidden">
         <div
           className="h-full transition-all duration-150"
           style={{ width: `${percent}%`, backgroundColor: color }}
         />
-      </div>
-      <div className="text-[8px] font-mono text-slate-500 text-center">
-        <div>{label}</div>
-        <div style={{ color }}>{Math.round(value)}</div>
       </div>
     </div>
   );
@@ -173,70 +175,73 @@ export default function DrivingScenarioSelector({ simulator }: DrivingScenariosP
         </div>
       </div>
 
-      {/* Live Telemetry Strip */}
-      <div className={`${panelBg} border ${panelBorder} rounded p-2.5`}>
-        <div className={`text-[8px] font-mono ${textLabel} uppercase tracking-wider mb-2`}>Live Telemetry</div>
-        <div className="flex gap-2">
-          <MiniGauge label="RPM" value={sensorState.rpm} max={7000} color="#0F766E" />
-          <MiniGauge label="Speed" value={sensorState.speed} max={200} color="#15803D" />
-          <MiniGauge label="Throttle" value={sensorState.throttle * 100} max={100} color="#B45309" />
-          <MiniGauge label="Load" value={sensorState.engineLoad * 100} max={100} color="#991B1B" />
-        </div>
-      </div>
-
-      {/* Scenario Detail Panel */}
-      {profile && (
-        <div className={`${panelBg} border ${panelBorder} rounded p-3 space-y-2.5`}>
-          <div className={`text-[8px] font-mono ${textLabel} uppercase tracking-wider`}>Scenario Profile</div>
-
-          <ScenarioRangeIndicator
-            label="RPM Range"
-            current={sensorState.rpm}
-            min={profile.rpmRange.min}
-            max={profile.rpmRange.max}
-            color="#0F766E"
-            unit="rpm"
-          />
-
-          <ScenarioRangeIndicator
-            label="Speed Range"
-            current={sensorState.speed}
-            min={profile.speedRange.min}
-            max={profile.speedRange.max}
-            color="#15803D"
-            unit="km/h"
-          />
-
-          <ScenarioRangeIndicator
-            label="Throttle Range"
-            current={sensorState.throttle * 100}
-            min={profile.throttleRange.min * 100}
-            max={profile.throttleRange.max * 100}
-            color="#B45309"
-            unit="%"
-          />
-
-          {/* Coolant Temp Display */}
-          <div className="pt-1">
-            <div className="flex justify-between items-center">
-              <span className="text-[9px] font-mono text-slate-400">Coolant Temp</span>
-              <span className="text-[9px] font-mono text-slate-300">{Math.round(sensorState.coolantTemp)}°C</span>
-            </div>
-            <div className="h-1.5 rounded bg-slate-700/50 mt-1 overflow-hidden">
-              <div
-                className="h-full transition-all duration-150"
-                style={{
-                  width: `${Math.min(100, (sensorState.coolantTemp / 120) * 100)}%`,
-                  backgroundColor: sensorState.coolantTemp > 100 ? '#991B1B' : '#15803D',
-                }}
-              />
-            </div>
+      {/* Telemetry + Scenario Profile side-by-side (dense 2-column layout) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {/* Live Telemetry Strip */}
+        <div className={`${panelBg} border ${panelBorder} rounded p-2.5`}>
+          <div className={`text-[8px] font-mono ${textLabel} uppercase tracking-wider mb-2`}>Live Telemetry</div>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+            <MiniGauge label="RPM" value={sensorState.rpm} max={7000} color="#0F766E" />
+            <MiniGauge label="Speed" value={sensorState.speed} max={200} color="#15803D" />
+            <MiniGauge label="Throttle" value={sensorState.throttle * 100} max={100} color="#B45309" />
+            <MiniGauge label="Load" value={sensorState.engineLoad * 100} max={100} color="#991B1B" />
           </div>
         </div>
-      )}
 
-      {/* Scenario Buttons */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+        {/* Scenario Detail Panel */}
+        {profile && (
+          <div className={`${panelBg} border ${panelBorder} rounded p-3 space-y-2.5`}>
+            <div className={`text-[8px] font-mono ${textLabel} uppercase tracking-wider`}>Scenario Profile</div>
+
+            <ScenarioRangeIndicator
+              label="RPM Range"
+              current={sensorState.rpm}
+              min={profile.rpmRange.min}
+              max={profile.rpmRange.max}
+              color="#0F766E"
+              unit="rpm"
+            />
+
+            <ScenarioRangeIndicator
+              label="Speed Range"
+              current={sensorState.speed}
+              min={profile.speedRange.min}
+              max={profile.speedRange.max}
+              color="#15803D"
+              unit="km/h"
+            />
+
+            <ScenarioRangeIndicator
+              label="Throttle Range"
+              current={sensorState.throttle * 100}
+              min={profile.throttleRange.min * 100}
+              max={profile.throttleRange.max * 100}
+              color="#B45309"
+              unit="%"
+            />
+
+            {/* Coolant Temp Display */}
+            <div className="pt-1">
+              <div className="flex justify-between items-center">
+                <span className="text-[9px] font-mono text-slate-400">Coolant Temp</span>
+                <span className="text-[9px] font-mono text-slate-300">{Math.round(sensorState.coolantTemp)}°C</span>
+              </div>
+              <div className="h-1.5 rounded bg-slate-700/50 mt-1 overflow-hidden">
+                <div
+                  className="h-full transition-all duration-150"
+                  style={{
+                    width: `${Math.min(100, (sensorState.coolantTemp / 120) * 100)}%`,
+                    backgroundColor: sensorState.coolantTemp > 100 ? '#991B1B' : '#15803D',
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Scenario Buttons (compactos, centralizados) */}
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 max-w-3xl mx-auto w-full">
         {SCENARIOS.map((scenario) => (
           <button
             key={scenario.id}
@@ -266,14 +271,21 @@ export default function DrivingScenarioSelector({ simulator }: DrivingScenariosP
       {/* Scenario Transition Timeline */}
       <div className="pt-2 border-t border-[#1e293b]">
         <div className={`text-[8px] font-mono ${textLabel} uppercase tracking-wider mb-2`}>60s Timeline</div>
-        <div className="flex h-2 rounded overflow-hidden bg-slate-800/50 gap-0.5">
+        <div
+          className="flex h-2 rounded overflow-hidden gap-0.5"
+          style={{ backgroundColor: '#E8E3D3' }}
+        >
           {scenarioHistory.map((entry, idx) => {
             const scenarioColor = SCENARIOS.find((s) => s.id === entry.scenario)?.color || '#94a3b8';
+            // IDLE uses a slate color (#475569) which appears visually "dark" on the
+            // cream palette. Remap it to the cream accent so the timeline reads as a
+            // soft pastel track rather than a gray bar.
+            const displayColor = entry.scenario === 'idle' ? '#CBD5E1' : scenarioColor;
             return (
               <div
                 key={idx}
                 className="flex-1 rounded-sm transition-all duration-150"
-                style={{ backgroundColor: scenarioColor, opacity: 0.8 }}
+                style={{ backgroundColor: displayColor, opacity: 0.8 }}
                 title={`${entry.scenario} (${entry.duration.toFixed(1)}s)`}
               />
             );

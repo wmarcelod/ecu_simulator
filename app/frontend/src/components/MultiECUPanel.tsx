@@ -166,19 +166,19 @@ export default function MultiECUPanel({ simulator }: MultiECUPanelProps) {
           <span className={`text-[10px] font-mono ${textLabel} uppercase tracking-widest`}>CAN Bus Network Topology</span>
         </div>
 
-        {/* Horizontal CAN Bus Line with ECU Connectors */}
-        <div className="relative px-2 py-6">
+        {/* Horizontal CAN Bus Line with ECU Connectors -- container compacto */}
+        <div className="relative px-2 py-6 max-w-3xl mx-auto">
           {/* CAN Bus Main Line */}
           <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-gradient-to-r from-violet-500/30 via-violet-500/60 to-violet-500/30 transform -translate-y-1/2" />
 
           {/* ECU Nodes */}
-          <div className="flex justify-between items-start px-4">
+          <div className="grid grid-cols-3 gap-8 items-start px-4">
             {ECU_CONFIG.map((ecu) => {
               const dtcs = ecuStates[ecu.address];
               const totalCodes = (dtcs?.stored.length ?? 0) + (dtcs?.pending.length ?? 0) + (dtcs?.permanent.length ?? 0);
 
               return (
-                <div key={ecu.address} className="flex flex-col items-center flex-1 max-w-[120px]">
+                <div key={ecu.address} className="flex flex-col items-center">
                   {/* Vertical Connector Line */}
                   <div className={`w-0.5 h-5 ${isRunning ? 'pulse-active' : ''}`} style={{ backgroundColor: ecu.color }} />
 
