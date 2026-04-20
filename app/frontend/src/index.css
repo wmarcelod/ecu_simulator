@@ -499,5 +499,17 @@ html[data-theme='dark']  [role='tab'][data-state='active'] {
 html[data-theme='light'] .bg-emerald-500,
 html[data-theme='dark']  .bg-emerald-500                 { background-color: #15803D !important; }
 
+/* Progress / gauge tracks that the components left as dark slate.
+ * On cream, these must be the paper-3 accent so the coloured fill is
+ * visible. */
+html[data-theme='light'] .bg-slate-700,
+html[data-theme='dark']  .bg-slate-700,
+html[data-theme='light'] .bg-slate-700\/50,
+html[data-theme='dark']  .bg-slate-700\/50,
+html[data-theme='light'] .bg-slate-800,
+html[data-theme='dark']  .bg-slate-800,
+html[data-theme='light'] .bg-slate-800\/50,
+html[data-theme='dark']  .bg-slate-800\/50                { background-color: #E8E3D3 !important; }
+
 /* Selection colour on cream should not be emerald-900/40 */
 html[data-theme='light'] ::selection { background-color: #C2410C; color: #FFFFFF; }

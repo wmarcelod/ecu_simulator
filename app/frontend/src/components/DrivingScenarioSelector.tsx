@@ -177,10 +177,10 @@ export default function DrivingScenarioSelector({ simulator }: DrivingScenariosP
       <div className={`${panelBg} border ${panelBorder} rounded p-2.5`}>
         <div className={`text-[8px] font-mono ${textLabel} uppercase tracking-wider mb-2`}>Live Telemetry</div>
         <div className="flex gap-2">
-          <MiniGauge label="RPM" value={sensorState.rpm} max={7000} color="#06b6d4" />
-          <MiniGauge label="Speed" value={sensorState.speed} max={200} color="#4ade80" />
-          <MiniGauge label="Throttle" value={sensorState.throttle * 100} max={100} color="#f59e0b" />
-          <MiniGauge label="Load" value={sensorState.engineLoad * 100} max={100} color="#ef4444" />
+          <MiniGauge label="RPM" value={sensorState.rpm} max={7000} color="#0F766E" />
+          <MiniGauge label="Speed" value={sensorState.speed} max={200} color="#15803D" />
+          <MiniGauge label="Throttle" value={sensorState.throttle * 100} max={100} color="#B45309" />
+          <MiniGauge label="Load" value={sensorState.engineLoad * 100} max={100} color="#991B1B" />
         </div>
       </div>
 
@@ -194,7 +194,7 @@ export default function DrivingScenarioSelector({ simulator }: DrivingScenariosP
             current={sensorState.rpm}
             min={profile.rpmRange.min}
             max={profile.rpmRange.max}
-            color="#06b6d4"
+            color="#0F766E"
             unit="rpm"
           />
 
@@ -203,7 +203,7 @@ export default function DrivingScenarioSelector({ simulator }: DrivingScenariosP
             current={sensorState.speed}
             min={profile.speedRange.min}
             max={profile.speedRange.max}
-            color="#4ade80"
+            color="#15803D"
             unit="km/h"
           />
 
@@ -212,7 +212,7 @@ export default function DrivingScenarioSelector({ simulator }: DrivingScenariosP
             current={sensorState.throttle * 100}
             min={profile.throttleRange.min * 100}
             max={profile.throttleRange.max * 100}
-            color="#f59e0b"
+            color="#B45309"
             unit="%"
           />
 
@@ -227,7 +227,7 @@ export default function DrivingScenarioSelector({ simulator }: DrivingScenariosP
                 className="h-full transition-all duration-150"
                 style={{
                   width: `${Math.min(100, (sensorState.coolantTemp / 120) * 100)}%`,
-                  backgroundColor: sensorState.coolantTemp > 100 ? '#ef4444' : '#4ade80',
+                  backgroundColor: sensorState.coolantTemp > 100 ? '#991B1B' : '#15803D',
                 }}
               />
             </div>
