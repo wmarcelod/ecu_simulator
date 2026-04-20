@@ -23,7 +23,7 @@ function downloadFile(content: string, filename: string, mimeType: string) {
 }
 
 export default function IndexPage() {
-  const { theme, toggleTheme } = useTheme();
+  const { theme } = useTheme();
   const simulatorRef = useRef<ECUSimulator>(new ECUSimulator('sedan'));
   const serialRef = useRef<SerialConnection | null>(null);
   const [serialStatus, setSerialStatus] = useState<ConnectionStatus>('disconnected');
@@ -82,14 +82,6 @@ export default function IndexPage() {
               Blog
             </a>
             <span className={`text-[10px] ${textMuted} font-mono hidden sm:inline`}>Desenvolvido por Marcelo Duchene</span>
-            {/* Theme Toggle */}
-            <button
-              onClick={toggleTheme}
-              className={`h-7 w-7 flex items-center justify-center rounded border ${border} ${theme === 'dark' ? 'bg-[#0f172a] hover:bg-[#1e293b]' : 'bg-gray-100 hover:bg-gray-200'} transition-colors`}
-              title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
-            >
-              <span className="text-[14px]">{theme === 'dark' ? '☀️' : '🌙'}</span>
-            </button>
           </div>
         </div>
       </header>

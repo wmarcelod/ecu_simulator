@@ -13,20 +13,18 @@ const ThemeContext = createContext<ThemeContextValue>({
 });
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setTheme] = useState<Theme>(() => {
-    if (typeof window !== 'undefined') {
-      return (localStorage.getItem('ecu-sim-theme') as Theme) || 'light';
-    }
-    return 'light';
-  });
+  // Tema fixo em 'light' apos redesign para paleta unica cream/navy/terracotta.
+  // O toggle foi removido; mantemos o provider para nao quebrar os consumidores de t(dark, light, theme).
+  const theme: Theme = 'light';
 
   useEffect(() => {
-    localStorage.setItem('ecu-sim-theme', theme);
     document.documentElement.setAttribute('data-theme', theme);
-  }, [theme]);
+    // Limpa qualquer preferencia antiga salva
+    try { localStorage.removeItem('ecu-sim-theme'); } catch { /* noop */ }
+  }, []);
 
   const toggleTheme = () => {
-    setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
+    /* no-op: tema unico */
   };
 
   return (
