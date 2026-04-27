@@ -50,3 +50,6 @@ test-results/
 pnpm-lock.yaml
 *.pyc
 __pycache__
+
+# We use pnpm, not npm — ignore npm lockfiles created by ad-hoc installs
+package-lock.json
