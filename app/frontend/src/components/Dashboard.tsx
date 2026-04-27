@@ -193,25 +193,25 @@ export default function Dashboard({ simulator, serialStatus, onConnectSerial, on
             ))}
           </div>
           <div className="flex items-center gap-2 ml-auto">
-            <button className={`h-7 px-3 text-[10px] font-mono uppercase ${bg2} border ${border} text-sky-400 hover:text-sky-300 rounded`} onClick={onExportLog}>↓ EXPORT LOG</button>
+            <button className={`h-7 px-3 text-[10px] font-mono uppercase ${bg2} border ${border} text-sky-400 hover:text-sky-300 rounded`} onClick={onExportLog}>↓ EXPORTAR LOG</button>
             <a href="/arduino_ecu_simulator.ino" download="arduino_ecu_simulator.ino" className={`h-7 px-3 text-[10px] font-mono uppercase ${bg2} border ${border} text-amber-400 hover:text-amber-300 rounded flex items-center`}>↓ ARDUINO</a>
             <div className={`h-4 w-px ${theme === 'dark' ? 'bg-[#1e293b]' : 'bg-gray-200'}`} />
             <div className="flex items-center gap-1.5">
               <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: serialColor }} />
-              <span className={`text-[10px] font-mono ${textMuted} uppercase`}>{serialStatus === 'connected' ? 'SERIAL OK' : serialStatus === 'error' ? 'ERROR' : 'STANDALONE'}</span>
+              <span className={`text-[10px] font-mono ${textMuted} uppercase`}>{serialStatus === 'connected' ? 'SERIAL OK' : serialStatus === 'error' ? 'ERRO' : 'SEM HARDWARE'}</span>
             </div>
             {serialStatus === 'connected' ? (
-              <button className={`h-7 px-3 text-[10px] font-mono uppercase ${bg2} border ${border} ${textLabel} hover:text-slate-200 rounded`} onClick={onDisconnectSerial}>DISCONNECT</button>
+              <button className={`h-7 px-3 text-[10px] font-mono uppercase ${bg2} border ${border} ${textLabel} hover:text-slate-200 rounded`} onClick={onDisconnectSerial}>DESCONECTAR</button>
             ) : (
-              <button className={`h-7 px-3 text-[10px] font-mono uppercase ${bg2} border ${border} ${textMuted} hover:text-slate-300 rounded`} onClick={onConnectSerial} title="Optional: Connect Arduino via Web Serial API">SERIAL</button>
+              <button className={`h-7 px-3 text-[10px] font-mono uppercase ${bg2} border ${border} ${textMuted} hover:text-slate-300 rounded`} onClick={onConnectSerial} title="Opcional: Conectar Arduino via Web Serial API">SERIAL</button>
             )}
           </div>
         </div>
       </div>
 
-      {dbcInfo && (<div className="bg-cyan-950/20 border border-cyan-800/30 rounded-md px-3 py-1.5 flex items-center gap-2"><span className="text-[10px] font-mono text-cyan-400">📄 DBC LOADED:</span><span className="text-[10px] font-mono text-cyan-300">{dbcInfo.name}</span><span className="text-[10px] font-mono text-cyan-600">— {dbcInfo.messages} messages, {dbcInfo.signals} signals</span></div>)}
-      {manualSensors.length > 0 && (<div className="bg-amber-950/20 border border-amber-800/30 rounded-md px-3 py-1.5 flex items-center gap-2"><span className="text-[10px] font-mono text-amber-400">⚠ MANUAL OVERRIDE ACTIVE:</span><span className="text-[10px] font-mono text-amber-300">{manualSensors.join(', ')}</span><span className="text-[10px] font-mono text-amber-600">— values fixed (attack simulation)</span></div>)}
-      {simulator.isMilOn() && (<div className="bg-red-950/20 border border-red-800/30 rounded-md px-3 py-1.5 flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" /><span className="text-[10px] font-mono text-red-400 uppercase tracking-wider">MIL ACTIVE — {simulator.getStoredDTCs().length} DTC(S) STORED</span></div>)}
+      {dbcInfo && (<div className="bg-cyan-950/20 border border-cyan-800/30 rounded-md px-3 py-1.5 flex items-center gap-2"><span className="text-[10px] font-mono text-cyan-400">📄 DBC CARREGADO:</span><span className="text-[10px] font-mono text-cyan-300">{dbcInfo.name}</span><span className="text-[10px] font-mono text-cyan-600">— {dbcInfo.messages} mensagens, {dbcInfo.signals} sinais</span></div>)}
+      {manualSensors.length > 0 && (<div className="bg-amber-950/20 border border-amber-800/30 rounded-md px-3 py-1.5 flex items-center gap-2"><span className="text-[10px] font-mono text-amber-400">⚠ OVERRIDE MANUAL ATIVO:</span><span className="text-[10px] font-mono text-amber-300">{manualSensors.join(', ')}</span><span className="text-[10px] font-mono text-amber-600">— valores fixos (simulação de ataque)</span></div>)}
+      {simulator.isMilOn() && (<div className="bg-red-950/20 border border-red-800/30 rounded-md px-3 py-1.5 flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" /><span className="text-[10px] font-mono text-red-400 uppercase tracking-wider">MIL ATIVA — {simulator.getStoredDTCs().length} DTC(s) ARMAZENADO(s)</span></div>)}
 
       {/* Gauges */}
       <div className={`${bg} border ${border} rounded-md p-4`}>

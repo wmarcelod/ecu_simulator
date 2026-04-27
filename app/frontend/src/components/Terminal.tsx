@@ -85,8 +85,8 @@ export default function Terminal({ simulator }: TerminalProps) {
       <div className={`${bg} border ${border} rounded-md p-2`}>
         <div className="flex items-center gap-2 mb-2">
           <div className="w-1 h-3 bg-emerald-500/70 rounded-full" />
-          <span className={`text-[10px] font-mono ${textMuted} uppercase tracking-widest`}>Quick Commands</span>
-          <span className={`text-[9px] font-mono ${textMuted} ml-auto`}>STANDALONE — NO HARDWARE NEEDED</span>
+          <span className={`text-[10px] font-mono ${textMuted} uppercase tracking-widest`}>Comandos Rápidos</span>
+          <span className={`text-[9px] font-mono ${textMuted} ml-auto`}>SEM HARDWARE — TUDO NO NAVEGADOR</span>
         </div>
         <div className="flex flex-wrap gap-1">
           {QUICK_CMDS.map((qc) => (
