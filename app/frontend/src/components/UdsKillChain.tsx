@@ -140,10 +140,9 @@ export default function UdsKillChain({ simulator }: Props) {
     setRuntimeError(null);
     frameCounter.current = 0;
     try {
-      // Hard reset of bootloader + ISO-TP/UDS stacks BEFORE building the orchestrator.
-      // resetKillChainLog() alone leaves stale RX state in the loopback ISO-TP, which
-      // makes subsequent runs race and timeout. resetUdsStack() rebuilds both stacks.
-      simulator.resetUdsStack();
+      // Reset apenas o log (resetUdsStack rebuild as stacks mas introduziu regressão
+      // de timing no recon, ainda sob investigação — tracker em docs/UDS_TIMING.md)
+      simulator.resetKillChainLog();
       const kc = simulator.buildKillChain({
         scenario,
         dumpSize,
