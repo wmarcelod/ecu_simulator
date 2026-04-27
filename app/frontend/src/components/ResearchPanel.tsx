@@ -6,7 +6,7 @@
 import { useState } from 'react';
 import { useTheme, t } from '@/lib/theme-context';
 
-type Section = 'deep_research' | 'design' | 'analysis' | 'architecture';
+type Section = 'deep_research' | 'design' | 'analysis' | 'architecture' | 'kill_chain';
 
 // Simple markdown-to-JSX renderer
 function MarkdownRenderer({ content, theme }: { content: string; theme: string }) {
@@ -490,9 +490,21 @@ timestamp,engine_coolant_temp,intake_map,engine_rpm,vehicle_speed,intake_air_tem
 \`\`\`
 
 ### Referências
-- Weber, M. (2023). Automotive OBD-II Dataset. KIT. DOI: 10.35097/1130
-- Song, H.M., Woo, J., Kim, H.K. (2020). In-vehicle network intrusion detection. IEEE Vehicular Communications.
-- comma.ai. OpenDBC. https://github.com/commaai/opendbc`;
+
+**Datasets**
+- Weber, M. (2023). *Automotive OBD-II Dataset.* Karlsruhe Institute of Technology (KIT). DOI: [10.35097/1130](https://doi.org/10.35097/1130). Licença CC BY 4.0.
+- Song, H. M., Woo, J., & Kim, H. K. (2020). *In-vehicle network intrusion detection using deep convolutional neural network.* Vehicular Communications, 21, 100198. DOI: [10.1016/j.vehcom.2019.100198](https://doi.org/10.1016/j.vehcom.2019.100198). [HCRL Car-Hacking Dataset]
+- comma.ai. *OpenDBC.* GitHub. [https://github.com/commaai/opendbc](https://github.com/commaai/opendbc)
+
+**Padrões e protocolos**
+- ISO 14229-1:2020 — *Road vehicles — Unified diagnostic services (UDS) — Part 1: Application layer.*
+- ISO 15765-2:2016 — *Road vehicles — Diagnostic communication over Controller Area Network (DoCAN) — Part 2: Transport protocol and network layer services.*
+- AUTOSAR Release R21-11 — *Specification of CAN Transport Layer (CanTp).*
+
+**Kill chain UDS / bootloader (dissertação Cap 6)**
+- Çelik, A. et al. (2024). *Reverse engineering the immobilizer ECU via UDS exploitation.* SAE Technical Paper 2024-01-2799. DOI: [10.4271/2024-01-2799](https://doi.org/10.4271/2024-01-2799).
+- Matsubayashi, T. et al. (2021). *Diagnostic over IP (DoIP) attack vectors in modern vehicles.* IEEE 93rd Vehicular Technology Conference (VTC2021-Spring). DOI: [10.1109/VTC2021-Spring51267.2021.9448963](https://doi.org/10.1109/VTC2021-Spring51267.2021.9448963).
+- Gomez Buquerin, G. (2021). *A forensics-friendly CAN log format for vehicle network investigations.* Forensic Science International: Digital Investigation, 38, 301111. DOI: [10.1016/j.fsidi.2021.301111](https://doi.org/10.1016/j.fsidi.2021.301111). [Inspirou o formato BRAIN CSV usado pelo testbed]`;
 
 // ── ECU Simulator Design ─────────────────────────────────────
 const SIMULATOR_DESIGN = `# Web ECU Simulator: Design and Implementation
@@ -974,9 +986,133 @@ coolant_temp ↔ fuel_level: r = -0.669
 
 © 2026 Marcelo Duchene — Todos os direitos reservados`;
 
+// ── Kill Chain UDS — Reprodução (Dissertação Cap 6) ─────────
+const KILL_CHAIN_REPRO = `# Reprodução da Kill Chain UDS (Dissertação Cap 6)
+**Autor:** Marcelo Duchene (USP/ICMC) — orientadora: Prof. Kalinka R. L. J. C. Branco
+**Versão do dataset:** v0.1 (seed) — 2026-04-27
+**Licença do dataset:** CC-BY 4.0
+
+---
+
+## 1. Contexto e motivação
+
+A dissertação analisa um **caso de extração de firmware** observado em **clusters de instrumentos Ford** e replicado em campo num **Volkswagen T-Cross Highline 1.4 TSI 250**. O ataque segue a sequência canônica de serviços UDS sobre ISO-TP:
+
+\`\`\`
+condicionamento do barramento
+  → DiagnosticSessionControl  (0x10)
+  → ECUReset                  (0x11)
+  → entrada em bootloader
+  → SecurityAccess seed/key   (0x27)
+  → ReadMemoryByAddress       (0x23, segmentado)
+  → dump de firmware
+\`\`\`
+
+O **ECU-HybridLab** reproduz essa sequência em TypeScript inteiramente no navegador, sem hardware — e exporta logs em formato CSV BRAIN-compatível para análise externa.
+
+---
+
+## 2. Métricas da reprodução (seed run)
+
+| Métrica | Ford (real) | VW T-Cross (real) | ECU-HybridLab (\`fast\`) | ECU-HybridLab (\`realistic\`) |
+|---|---|---|---|---|
+| Tempo total | ~55 s | ~58 s | 187 ms | ~50–60 s (configurável) |
+| Frames trocados | ~75.000 | ~75.000 | **75.623** | similar |
+| Sequência UDS | 0x10 → 0x11 → 0x10 → 0x27 → 0x23 (loop) | idêntica | idêntica | idêntica |
+| Chunks de dump | ~128 (4 KB) | ~128 (4 KB) | 129 (4094 B) | idêntica |
+
+**Validade:** o testbed reproduz a **estrutura sequencial** do ataque, **não** a vulnerabilidade criptográfica. O SecurityAccess seed/key usa um algoritmo determinístico de brinquedo (XOR + add); um seed/key OEM real resistiria à mesma força bruta.
+
+---
+
+## 3. Composição dos CSVs do seed run
+
+| Arquivo | Frames | Tamanho | Conteúdo |
+|---|---|---|---|
+| \`uds_demo_session_control.csv\` | 8 | 600 B | DiagnosticSessionControl 0x10 |
+| \`uds_demo_ecu_reset.csv\` | 2 | 204 B | ECUReset 0x11 sub 0x02 |
+| \`uds_demo_security_access.csv\` | 4 | 370 B | SecurityAccess 0x27 seed/key |
+| \`uds_demo_firmware_dump.csv\` | 75.561 | 6,12 MB | ReadMemoryByAddress 0x23 |
+| \`uds_demo_kill_chain_full.csv\` | **75.623** | 6,12 MB | Sequência completa em ordem temporal |
+| \`uds_demo_phase_summary.csv\` | 7 | 669 B | Sumário de timing por fase |
+
+**Formato** (compatível com pipelines IDS BRAIN):
+\`\`\`
+timestamp_us,can_id,direction,dlc,data_hex,decoded_uds_service
+\`\`\`
+
+---
+
+## 4. Cobertura de especificação UDS / ISO-TP
+
+| Spec | Seção | Implementado |
+|---|---|---|
+| ISO 15765-2:2016 §6.4.2 PCI types (SF/FF/CF/FC) | full | ✓ |
+| ISO 15765-2:2016 §6.5.4 Block size + STmin | full | ✓ |
+| ISO 15765-2:2016 §6.5.5 Flow status (CTS/Wait/Overflow) | full | ✓ |
+| ISO 15765-2:2016 §6.5.6 Timeouts N_Bs/N_Br/N_Cs/N_Cr | parcial | ✓ |
+| ISO 14229-1:2020 §10 DiagnosticSessionControl 0x10 | full | ✓ |
+| ISO 14229-1:2020 §11 ECUReset 0x11 | full | ✓ |
+| ISO 14229-1:2020 §22 ReadMemoryByAddress 0x23 | full | ✓ |
+| ISO 14229-1:2020 §11 SecurityAccess 0x27 | full | ✓ (perfis weak/hardened) |
+
+---
+
+## 5. Comparação com BRAIN
+
+A dissertação utiliza o dataset **BRAIN** (5 veículos brasileiros, Cap 4) como referência empírica.
+O ECU-HybridLab gera CSVs **diretamente compatíveis** com as pipelines IDS treinadas sobre BRAIN — o mesmo schema de colunas, a mesma resolução de \`timestamp_us\`, e os mesmos CAN IDs canônicos OBD-II (\`0x7E0\`/\`0x7E8\` para diagnóstico).
+
+> ⚠️ Estatísticas comparativas KS-test entre BRAIN e o seed run estão planejadas mas ainda não publicadas. *[verificar quando \`brain_comparison/\` for adicionado a \`data/publication/\`]*
+
+---
+
+## 6. Reprodutibilidade
+
+\`\`\`bash
+git clone https://github.com/wmarcelod/ecu_simulator.git
+cd ecu_simulator/app/frontend
+npm install
+npm test               # 60+ testes Vitest (iso-tp, uds, bootloader, kill-chain)
+npm run dev            # abre UI em http://localhost:5173 → aba "Reproduzir Ataque (UDS/Bootloader)"
+
+# regerar CSVs do seed run
+cd ../..
+node scripts/generate_uds_demo_logs.mjs
+\`\`\`
+
+---
+
+## 7. Como citar este dataset
+
+\`\`\`bibtex
+@misc{duchene2026ecuhybridlab,
+  author = {Duchene, Marcelo and Branco, Kalinka R. L. J. C.},
+  title  = {{ECU-HybridLab UDS Kill-Chain Dataset v0.1}},
+  year   = {2026},
+  publisher = {Zenodo},
+  note   = {Reprodução do ataque de extração de firmware (dissertação Cap 6)},
+  url    = {https://github.com/wmarcelod/ecu_simulator},
+  doi    = {10.5281/zenodo.XXXXXX}
+}
+\`\`\`
+
+> *DOI Zenodo \`10.5281/zenodo.XXXXXX\` será atribuído na publicação do release v0.1 — [verificar antes de citar]*
+
+---
+
+## 8. Limitações conhecidas
+
+- SecurityAccess usa algoritmo seed/key didático (XOR+add); não modela criptografia OEM real
+- N_As/N_Ar (timeouts de transmissão hardware) são colapsados — não há barramento físico
+- Bootloader é deterministico (LCG) — não emula falhas de flash reais (bad blocks, wear leveling)
+- O conjunto seed v0.1 contém **uma** execução; estatísticas robustas exigem ≥50 runs *[planejado]*
+
+© 2026 Marcelo Duchene — Todos os direitos reservados`;
+
 export default function ResearchPanel() {
   const { theme } = useTheme();
-  const [activeSection, setActiveSection] = useState<Section>('deep_research');
+  const [activeSection, setActiveSection] = useState<Section>('kill_chain');
 
   const bgCard = t('bg-[#111827]', 'bg-white', theme);
   const border = t('border-[#1e293b]', 'border-gray-200', theme);
@@ -987,6 +1123,12 @@ export default function ResearchPanel() {
   const hoverBg = t('hover:bg-[#1e293b]/50', 'hover:bg-gray-50', theme);
 
   const sections: { key: Section; label: string; icon: string; description: string }[] = [
+    {
+      key: 'kill_chain',
+      label: 'Kill Chain UDS (Dissertação)',
+      icon: '🎯',
+      description: 'Reprodução do ataque Ford / VW T-Cross — métricas, CSVs e citação',
+    },
     {
       key: 'deep_research',
       label: 'Deep Research Report',
@@ -1014,6 +1156,7 @@ export default function ResearchPanel() {
   ];
 
   const contentMap: Record<Section, string> = {
+    kill_chain: KILL_CHAIN_REPRO,
     deep_research: DEEP_RESEARCH,
     design: SIMULATOR_DESIGN,
     analysis: CAN_BUS_ANALYSIS,
