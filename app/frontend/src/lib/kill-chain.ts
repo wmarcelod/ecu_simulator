@@ -41,11 +41,16 @@ export interface KillChainOptions {
   onProgress?: (event: KillChainEvent) => void;
 }
 
+// ISO 15765-2 (CAN clássico) limita o PDU total a 4095 bytes. A resposta UDS
+// 0x23 vem como [0x63, ...dados], então o máximo seguro de DADOS por request
+// é 4093 bytes — qualquer chunk maior produz NRC 0x14 (responseTooLong).
+// Usamos 2048 como padrão para deixar folga e ficar bem alinhado a um power
+// of two comum em ferramentas de programação ECU.
 export const DEFAULT_KILL_CHAIN_OPTIONS: KillChainOptions = {
   scenario: 'realistic',
   dumpAddress: 0x0000_0000,
   dumpSize: 512 * 1024,
-  chunkSize: 4096,
+  chunkSize: 2048,
   interPhasePauseMs: 200,
   bruteForceMaxAttempts: 256,
   securityLevel: 1,
