@@ -84,7 +84,7 @@ export default function UdsKillChain({ simulator }: Props) {
 
   const [scenario, setScenario] = useState<KillChainScenario>('fast');
   const [dumpSize, setDumpSize] = useState(64 * 1024); // 64 KiB default for demo
-  const [chunkSize, setChunkSize] = useState(2048);    // safe under ISO-TP 4093-byte cap
+  const [chunkSize, setChunkSize] = useState(1024);    // safe under ISO-TP 4093-byte cap + comfortable under client timeout
   const [running, setRunning] = useState(false);
   const [events, setEvents] = useState<KillChainEvent[]>([]);
   const [frames, setFrames] = useState<FrameRecord[]>([]);
@@ -310,9 +310,9 @@ export default function UdsKillChain({ simulator }: Props) {
               title="Tamanho de cada bloco em ReadMemoryByAddress 0x23. Máximo seguro: 4093 bytes (ISO-TP)."
             >
               <option value={512}>chunk = 512 B</option>
-              <option value={1024}>chunk = 1 KiB</option>
-              <option value={2048}>chunk = 2 KiB (recomendado)</option>
-              <option value={4093}>chunk = 4093 B (limite ISO-TP)</option>
+              <option value={1024}>chunk = 1 KiB (recomendado)</option>
+              <option value={2048}>chunk = 2 KiB</option>
+              <option value={4093}>chunk = 4093 B (limite ISO-TP — pode estourar timeout)</option>
             </select>
           </div>
           <Button onClick={onRun} disabled={running} className="self-end">

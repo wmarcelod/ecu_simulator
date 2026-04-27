@@ -45,7 +45,12 @@ export class UdsClient {
   private pendingErr: ((err: IsoTpError | Error) => void) | null = null;
   private unsubMsg: () => void;
   private unsubErr: () => void;
-  public defaultTimeoutMs = 5000;
+  // 30s default — multi-frame ISO-TP responses (e.g. 2 KiB ReadMemoryByAddress)
+  // can take several seconds in the browser due to setTimeout(0) ≈ 4 ms granularity
+  // (293 CFs × 4 ms ≈ 1.2 s nominal, but Promise scheduling overhead pushes it higher).
+  // 5 s was too tight — produced spurious "UDS request timed out" on the first dump
+  // chunk even though the server eventually responded.
+  public defaultTimeoutMs = 30000;
 
   constructor(
     public readonly stack: IsoTpStack,
