@@ -36,8 +36,10 @@ function bytesToDumpHex(bytes: Uint8Array): string {
     .join(' ');
 }
 
-function downloadBlob(content: BlobPart, filename: string, mimeType: string) {
-  const blob = new Blob([content as BlobPart], { type: mimeType });
+function downloadBlob(content: BlobPart | Uint8Array, filename: string, mimeType: string) {
+  // Cast through unknown — Uint8Array is a valid Blob input at runtime even if
+  // its TS type signature drifts between SharedArrayBuffer / ArrayBuffer.
+  const blob = new Blob([content as unknown as BlobPart], { type: mimeType });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -113,7 +115,7 @@ export default function UdsKillChain({ simulator }: UdsKillChainProps) {
   const downloadFirmware = useCallback(() => {
     if (!result) return;
     const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-    downloadBlob(result.firmware, `uds_firmware_dump_${ts}.bin`, 'application/octet-stream');
+    downloadBlob(result.firmware as unknown as BlobPart, `uds_firmware_dump_${ts}.bin`, 'application/octet-stream');
   }, [result]);
 
   const headerSummary = useMemo(() => {
