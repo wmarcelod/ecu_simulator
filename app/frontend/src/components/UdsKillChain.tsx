@@ -126,47 +126,99 @@ export default function UdsKillChain({ simulator }: Props) {
 
   return (
     <div className="space-y-4 p-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-bold">UDS Kill-Chain Demo (Ford / VW T-Cross style)</h2>
-          <div className="text-xs text-muted-foreground">{stateText}</div>
+      {/* Didactic intro banner */}
+      <div className="rounded-md border border-emerald-500/40 bg-emerald-500/5 p-4">
+        <div className="flex items-start gap-3">
+          <div className="text-2xl leading-none">🎯</div>
+          <div className="space-y-1">
+            <h2 className="text-base font-bold text-emerald-400">
+              Demonstração Reprodutível — Ataque Ford / VW T-Cross (UDS Kill Chain)
+            </h2>
+            <p className="text-[12px] text-slate-300 leading-relaxed">
+              Esta é uma <strong>demonstração reprodutível</strong> do ataque Ford/VW T-Cross documentado na dissertação.
+              A simulação executa a kill chain UDS completa
+              (<code className="px-1 rounded bg-slate-800 text-amber-300 text-[11px]">DiagnosticSessionControl 0x10</code>{' → '}
+              <code className="px-1 rounded bg-slate-800 text-amber-300 text-[11px]">ECUReset 0x11</code>{' → '}
+              <code className="px-1 rounded bg-slate-800 text-amber-300 text-[11px]">SecurityAccess 0x27</code>{' → '}
+              <code className="px-1 rounded bg-slate-800 text-amber-300 text-[11px]">ReadMemoryByAddress 0x23</code>)
+              e gera <strong>~75.000 quadros CAN reais</strong>. Você pode baixar os logs em formato CSV BRAIN-compatível,
+              o firmware reconstruído (.bin) e um relatório JSON detalhado para análise externa.
+            </p>
+          </div>
         </div>
-        <div className="flex gap-2 items-center">
-          <Select value={scenario} onValueChange={(v) => setScenario(v as KillChainScenario)}>
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Scenario" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="fast">fast (CI/test)</SelectItem>
-              <SelectItem value="realistic">realistic (~50-60s)</SelectItem>
-              <SelectItem value="brute-force">brute-force (IDS training)</SelectItem>
-            </SelectContent>
-          </Select>
-          <select
-            className="border rounded px-2 py-1 text-sm"
-            value={dumpSize}
-            onChange={(e) => setDumpSize(parseInt(e.target.value, 10))}
-            disabled={running}
-          >
-            <option value={4096}>4 KiB</option>
-            <option value={16384}>16 KiB</option>
-            <option value={65536}>64 KiB</option>
-            <option value={262144}>256 KiB</option>
-            <option value={524288}>512 KiB (full)</option>
-          </select>
-          <select
-            className="border rounded px-2 py-1 text-sm"
-            value={chunkSize}
-            onChange={(e) => setChunkSize(parseInt(e.target.value, 10))}
-            disabled={running}
-          >
-            <option value={512}>chunk=512</option>
-            <option value={1024}>chunk=1024</option>
-            <option value={2048}>chunk=2048</option>
-            <option value={4096}>chunk=4096</option>
-          </select>
-          <Button onClick={onRun} disabled={running}>
-            {running ? 'Running...' : 'Run kill chain'}
+      </div>
+
+      {/* Step ribbon — 4 stages */}
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
+        {[
+          { n: '1', t: 'Configure', d: 'Cenário, tamanho do dump e chunk' },
+          { n: '2', t: 'Execute', d: 'Clique em "Executar Kill Chain"' },
+          { n: '3', t: 'Visualize', d: 'Fases ao vivo + frames CAN' },
+          { n: '4', t: 'Baixe', d: 'CSV, firmware (.bin), JSON' },
+        ].map((s) => (
+          <div key={s.n} className="rounded border border-slate-700 bg-slate-900/40 p-2">
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 rounded-full bg-emerald-500 text-slate-900 font-bold text-xs flex items-center justify-center">{s.n}</div>
+              <div className="text-sm font-semibold text-emerald-300">{s.t}</div>
+            </div>
+            <div className="text-[11px] text-slate-400 mt-1 leading-snug">{s.d}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Status + Controls */}
+      <div className="flex items-center justify-between flex-wrap gap-3 border-t border-slate-700 pt-3">
+        <div>
+          <div className="text-[11px] uppercase tracking-wider text-slate-500">Estado do Servidor UDS</div>
+          <div className="text-xs text-slate-300 font-mono">{stateText}</div>
+        </div>
+        <div className="flex gap-2 items-center flex-wrap">
+          <div className="flex flex-col">
+            <label className="text-[10px] uppercase text-slate-500 mb-0.5" title="Define o ritmo da kill chain. 'fast' usa STmin=0 (~200 ms, ideal para CI). 'realistic' replica timing veicular real (~50-60 s). 'brute-force' gera ~75 mil frames com tentativas de SecurityAccess (training set para IDS).">Cenário</label>
+            <Select value={scenario} onValueChange={(v) => setScenario(v as KillChainScenario)}>
+              <SelectTrigger className="w-[200px]" title="Define o ritmo da kill chain.">
+                <SelectValue placeholder="Cenário" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="fast">fast — CI/teste (~200 ms)</SelectItem>
+                <SelectItem value="realistic">realistic — timing real (~50-60 s)</SelectItem>
+                <SelectItem value="brute-force">brute-force — training set IDS</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex flex-col">
+            <label className="text-[10px] uppercase text-slate-500 mb-0.5" title="Quantidade total de bytes a extrair do bootloader emulado. 512 KiB = dump completo da flash simulada.">Tamanho do dump</label>
+            <select
+              className="border rounded px-2 py-1 text-sm bg-slate-900 text-slate-200 border-slate-700"
+              value={dumpSize}
+              onChange={(e) => setDumpSize(parseInt(e.target.value, 10))}
+              disabled={running}
+              title="Quantidade total de bytes a extrair do bootloader emulado."
+            >
+              <option value={4096}>4 KiB</option>
+              <option value={16384}>16 KiB</option>
+              <option value={65536}>64 KiB</option>
+              <option value={262144}>256 KiB</option>
+              <option value={524288}>512 KiB (flash completa)</option>
+            </select>
+          </div>
+          <div className="flex flex-col">
+            <label className="text-[10px] uppercase text-slate-500 mb-0.5" title="Tamanho de cada bloco lido por ReadMemoryByAddress 0x23. Chunks menores geram mais frames CAN — útil para gerar mais dados de treino.">Chunk</label>
+            <select
+              className="border rounded px-2 py-1 text-sm bg-slate-900 text-slate-200 border-slate-700"
+              value={chunkSize}
+              onChange={(e) => setChunkSize(parseInt(e.target.value, 10))}
+              disabled={running}
+              title="Tamanho de cada bloco em ReadMemoryByAddress 0x23."
+            >
+              <option value={512}>chunk = 512 B</option>
+              <option value={1024}>chunk = 1 KiB</option>
+              <option value={2048}>chunk = 2 KiB</option>
+              <option value={4096}>chunk = 4 KiB</option>
+            </select>
+          </div>
+          <Button onClick={onRun} disabled={running} className="self-end">
+            {running ? 'Executando...' : '▶ Executar Kill Chain'}
           </Button>
         </div>
       </div>
@@ -192,35 +244,38 @@ export default function UdsKillChain({ simulator }: Props) {
       {report && (
         <div className="flex flex-wrap gap-2 items-center text-sm border-t pt-2">
           <span><strong>Total:</strong> {report.totalDurationMs.toFixed(0)} ms</span>
-          <span><strong>Dumped:</strong> {report.dumpedBytes} bytes</span>
-          <span><strong>Throughput:</strong> {(report.bytesPerSecond / 1024).toFixed(1)} KiB/s</span>
-          <span><strong>Hash:</strong> {report.dumpChecksum} {report.verified ? 'VERIFIED' : 'MISMATCH'}</span>
-          <Button size="sm" variant="outline" onClick={() => csv && downloadBlob(csv, `uds_demo_kill_chain_${scenario}_${Date.now()}.csv`, 'text/csv')}>
-            Download CSV
+          <span><strong>Extraído:</strong> {report.dumpedBytes} bytes</span>
+          <span><strong>Taxa:</strong> {(report.bytesPerSecond / 1024).toFixed(1)} KiB/s</span>
+          <span><strong>Hash:</strong> {report.dumpChecksum} {report.verified ? '✓ VERIFICADO' : '✗ DIVERGÊNCIA'}</span>
+          <Button size="sm" variant="outline" title="Log de frames CAN no formato CSV BRAIN-compatível (compatível com o dataset BRAIN/USP)" onClick={() => csv && downloadBlob(csv, `uds_demo_kill_chain_${scenario}_${Date.now()}.csv`, 'text/csv')}>
+            ⬇ Baixar CSV (BRAIN)
           </Button>
-          <Button size="sm" variant="outline" onClick={() => reconstructedFw && downloadBlob(reconstructedFw, `uds_demo_firmware_${scenario}_${Date.now()}.bin`, 'application/octet-stream')}>
-            Download FW
+          <Button size="sm" variant="outline" title="Bytes brutos do firmware reconstruído a partir do dump (binary)" onClick={() => reconstructedFw && downloadBlob(reconstructedFw, `uds_demo_firmware_${scenario}_${Date.now()}.bin`, 'application/octet-stream')}>
+            ⬇ Baixar Firmware (.bin)
           </Button>
-          <Button size="sm" variant="outline" onClick={() => report && downloadBlob(JSON.stringify(report, (k, v) => v instanceof Uint8Array ? bytesToHex(v) : v, 2), `uds_demo_report_${scenario}_${Date.now()}.json`, 'application/json')}>
-            Download JSON
+          <Button size="sm" variant="outline" title="Relatório completo de cada fase com timing, bytes e estado UDS (JSON)" onClick={() => report && downloadBlob(JSON.stringify(report, (k, v) => v instanceof Uint8Array ? bytesToHex(v) : v, 2), `uds_demo_report_${scenario}_${Date.now()}.json`, 'application/json')}>
+            ⬇ Baixar Relatório (JSON)
           </Button>
         </div>
       )}
 
       {/* Live event log (last 100) */}
-      <div className="border rounded bg-slate-50 max-h-72 overflow-y-auto p-2 text-xs font-mono">
-        {events.slice(-100).map((e, i) => (
-          <div key={i} className="grid grid-cols-[80px_1fr] gap-2">
-            <span className="text-slate-500">{e.timestampMs.toFixed(0).padStart(7, ' ')}</span>
-            <span><strong>[{e.phase}]</strong> {e.message}</span>
-          </div>
-        ))}
-        {events.length === 0 && <span className="text-slate-400">No activity. Click "Run kill chain" to start.</span>}
+      <div>
+        <div className="text-[11px] uppercase tracking-wider text-slate-500 mb-1">Log de eventos da Kill Chain (últimos 100)</div>
+        <div className="border border-slate-700 rounded bg-slate-900/60 max-h-72 overflow-y-auto p-2 text-xs font-mono">
+          {events.slice(-100).map((e, i) => (
+            <div key={i} className="grid grid-cols-[80px_1fr] gap-2">
+              <span className="text-slate-500">{e.timestampMs.toFixed(0).padStart(7, ' ')}</span>
+              <span className="text-slate-300"><strong className="text-emerald-400">[{e.phase}]</strong> {e.message}</span>
+            </div>
+          ))}
+          {events.length === 0 && <span className="text-slate-400">Sem atividade. Clique em "▶ Executar Kill Chain" para iniciar.</span>}
+        </div>
       </div>
 
       {/* CAN frame log */}
       <div>
-        <div className="text-sm font-semibold mb-1">Frames captured: {frames.length}</div>
+        <div className="text-sm font-semibold mb-1">Frames CAN capturados: {frames.length}</div>
         <div className="border rounded max-h-72 overflow-y-auto text-xs font-mono">
           <table className="w-full">
             <thead className="sticky top-0 bg-slate-200">

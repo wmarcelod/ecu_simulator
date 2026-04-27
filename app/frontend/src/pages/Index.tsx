@@ -76,12 +76,6 @@ export default function IndexPage() {
           <div className={`h-3 w-px ${theme === 'dark' ? 'bg-[#1e293b]' : 'bg-gray-200'} mx-1`} />
           <span className={`text-[11px] ${textMuted} font-mono`}>ELM327 / OBD-II Protocol Emulator</span>
           <div className="ml-auto flex items-center gap-3">
-            <a
-              href="/blog/"
-              className={`text-[10px] font-mono ${textAccent} hover:underline hidden sm:inline`}
-            >
-              Blog
-            </a>
             <span className={`text-[10px] ${textMuted} font-mono hidden sm:inline`}>Desenvolvido por Marcelo Duchene</span>
           </div>
         </div>
@@ -92,23 +86,23 @@ export default function IndexPage() {
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className={`${bgHeader} border ${border} rounded-md mb-3 h-8 gap-0 p-0`}>
             {[
-              { value: 'dashboard', label: 'DASHBOARD' },
-              { value: 'driving', label: 'DRIVING' },
-              { value: 'multi-ecu', label: 'MULTI-ECU' },
-              { value: 'can', label: 'CAN MONITOR' },
-              { value: 'attacks', label: 'ATTACKS' },
-              { value: 'kill-chain', label: 'KILL CHAIN' },
-              { value: 'terminal', label: 'TERMINAL' },
-              { value: 'sensors', label: 'SENSORS' },
-              { value: 'playback', label: 'PLAYBACK' },
-              { value: 'dtc', label: 'DTC MGMT' },
-              { value: 'schematic', label: 'SCHEMATIC' },
-              { value: 'research', label: 'RESEARCH' },
+              { value: 'dashboard', label: 'Painel Geral' },
+              { value: 'driving', label: 'Simular Direção' },
+              { value: 'multi-ecu', label: 'Múltiplas ECUs' },
+              { value: 'can', label: 'Tráfego CAN ao Vivo' },
+              { value: 'attacks', label: 'Ataques Comuns' },
+              { value: 'kill-chain', label: 'Reproduzir Ataque (UDS/Bootloader)' },
+              { value: 'terminal', label: 'Terminal ELM327' },
+              { value: 'sensors', label: 'Sensores' },
+              { value: 'playback', label: 'Replay de Captura' },
+              { value: 'dtc', label: 'Códigos de Falha (DTC)' },
+              { value: 'schematic', label: 'Diagrama do Sistema' },
+              { value: 'research', label: 'Documentação e Pesquisa' },
             ].map((tab) => (
               <TabsTrigger
                 key={tab.value}
                 value={tab.value}
-                className={`rounded-none border-r ${border} last:border-r-0 h-full px-4 text-[11px] font-mono tracking-wider ${textMuted} ${theme === 'dark' ? 'data-[state=active]:bg-[#1e293b]' : 'data-[state=active]:bg-gray-100'} data-[state=active]:${textAccent} data-[state=active]:shadow-none hover:text-slate-300 transition-colors`}
+                className={`rounded-none border-r ${border} last:border-r-0 h-full px-3 text-[11px] font-medium tracking-tight whitespace-nowrap ${textMuted} ${theme === 'dark' ? 'data-[state=active]:bg-[#1e293b]' : 'data-[state=active]:bg-gray-100'} data-[state=active]:${textAccent} data-[state=active]:shadow-none hover:text-slate-300 transition-colors`}
               >
                 {tab.label}
               </TabsTrigger>
