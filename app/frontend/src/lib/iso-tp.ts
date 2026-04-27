@@ -405,11 +405,8 @@ export class IsoTpStack {
         return;
       }
 
-      // Multi-frame path: send FF, wait for FC.
-      const firstSix = payload.slice(0, 6);
-      const ff = IsoTp.buildFirstFrame(payload.length, firstSix, this.cfg.padByte);
-      this.send({ id: this.cfg.txId, data: ff });
-
+      // Multi-frame path: install TX state FIRST so a synchronously-delivered
+      // FC (in unit tests with an in-memory bus) finds an active session.
       this.tx = {
         payload,
         cursor: 6,
@@ -420,11 +417,14 @@ export class IsoTpStack {
         reject,
         done: false,
       };
-
-      // Arm Bs timer waiting for FC.
+      // Arm Bs timer BEFORE sending so that the FC handler can clear it.
       this.tx.bsTimer = this.clock.setTimeout(() => {
         this.failTx(new IsoTpError('timeout-bs', 'no FC after FF'));
       }, this.cfg.timeoutBsMs) as ReturnType<typeof setTimeout>;
+
+      const firstSix = payload.slice(0, 6);
+      const ff = IsoTp.buildFirstFrame(payload.length, firstSix, this.cfg.padByte);
+      this.send({ id: this.cfg.txId, data: ff });
     });
   }
 
@@ -536,7 +536,11 @@ export class IsoTpStack {
     }
 
     if (rx.framesUntilFc === 0) {
-      // Send another FC and reset the block counter.
+      // Reset block counter BEFORE sending FC: under a synchronous virtual
+      // bus, the FC may be delivered to the sender immediately, which can
+      // synchronously push the next block of CFs through this same handler.
+      rx.framesUntilFc =
+        this.cfg.blockSize === 0 ? Number.POSITIVE_INFINITY : this.cfg.blockSize;
       const fc = IsoTp.buildFlowControl(
         IsoTpFlowStatus.ContinueToSend,
         this.cfg.blockSize,
@@ -544,8 +548,6 @@ export class IsoTpStack {
         this.cfg.padByte,
       );
       this.send({ id: this.cfg.txId, data: fc });
-      rx.framesUntilFc =
-        this.cfg.blockSize === 0 ? Number.POSITIVE_INFINITY : this.cfg.blockSize;
     }
 
     rx.crTimer = this.clock.setTimeout(() => {
@@ -596,16 +598,20 @@ export class IsoTpStack {
       const remaining = tx.payload.length - tx.cursor;
       const take = Math.min(7, remaining);
       const chunk = tx.payload.slice(tx.cursor, tx.cursor + take);
-      const cf = IsoTp.buildConsecutiveFrame(tx.nextSeq, chunk, this.cfg.padByte);
-      this.send({ id: this.cfg.txId, data: cf });
-
+      const cfSeq = tx.nextSeq;
+      // Advance cursor / sequence / block counter BEFORE calling this.send,
+      // because under a synchronous virtual bus the receiver may immediately
+      // send back an FC that re-enters pumpTxBlock — we must not double-account.
       tx.cursor += take;
       tx.nextSeq = (tx.nextSeq + 1) & 0x0f;
       if (tx.framesUntilFc !== Number.POSITIVE_INFINITY) {
         tx.framesUntilFc -= 1;
       }
-
-      if (tx.cursor >= tx.payload.length) {
+      const isLast = tx.cursor >= tx.payload.length;
+      const cf = IsoTp.buildConsecutiveFrame(cfSeq, chunk, this.cfg.padByte);
+      this.send({ id: this.cfg.txId, data: cf });
+      if (tx.done) return; // re-entrant inner pump may have completed the transfer
+      if (isLast) {
         tx.done = true;
         tx.resolve();
         this.tx = null;

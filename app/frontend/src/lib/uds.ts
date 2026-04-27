@@ -308,9 +308,10 @@ export class UdsServer {
     if (size === 0) {
       return this.neg(UDS_SID.ReadMemoryByAddress, UDS_NRC.requestOutOfRange);
     }
-    // Cap a single response to prevent astronomical replies that wouldn't fit
-    // in 12-bit ISO-TP (max 4095 bytes) anyway. The real exploit uses ~4096 byte chunks.
-    const maxChunk = 4093; // 4095 ISO-TP cap minus 2 bytes (SID + ?). Headroom for SID.
+    // Cap a single response to fit inside ISO-TP's 12-bit length (max 4095 bytes)
+    // including the SID. The real exploit uses 4096-byte chunks; we accept up to
+    // 4094 (ISO-TP cap minus 1 SID byte).
+    const maxChunk = 4094; // 4095 ISO-TP cap - 1 SID byte
     if (size > maxChunk) {
       return this.neg(UDS_SID.ReadMemoryByAddress, UDS_NRC.requestOutOfRange);
     }

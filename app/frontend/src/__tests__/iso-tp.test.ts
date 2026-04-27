@@ -269,6 +269,8 @@ describe('IsoTpStack — overflow handling', () => {
       bus.sendFromA,
       fakeClock.clock,
     );
+    // Bind only A so sendFromB delivers FC directly into A.
+    bus.bind(a, a);
     const promise = a.sendBuffer(new Uint8Array(20));
     const fcOvfl = IsoTp.buildFlowControl(IsoTpFlowStatus.Overflow, 0, 0);
     bus.sendFromB({ id: bus.bId, data: fcOvfl });

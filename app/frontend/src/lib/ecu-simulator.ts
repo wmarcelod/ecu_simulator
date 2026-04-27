@@ -2,6 +2,15 @@
 // ECU Simulator Engine - Core simulation logic
 // ============================================================
 
+import { BootloaderState } from './bootloader';
+import { IsoTpStack, IsoTpCanFrame } from './iso-tp';
+import {
+  UdsServer,
+  defaultComputeKey,
+  bytesToHex as udsBytesToHex,
+} from './uds';
+import { defaultDids } from './kill-chain';
+
 export interface VehicleProfile {
   id: string;
   name: string;
@@ -358,6 +367,17 @@ export class ECUSimulator {
   private communicationEnabled: boolean = true; // Communication enabled
   private didStorage: Record<string, number[]> = {}; // Writable DID storage
 
+  // ============================================================
+  // ISO-TP / UDS Multi-frame stack + Bootloader emulation
+  // (used by the kill-chain demo and any direct CAN consumer)
+  // ============================================================
+  private bootloader: BootloaderState = new BootloaderState();
+  private udsServer: UdsServer | null = null;
+  private udsIsoTp: IsoTpStack | null = null;
+  private udsFrameListeners: Array<(f: IsoTpCanFrame) => void> = [];
+  private udsRequestId: number = 0x7e0;
+  private udsResponseId: number = 0x7e8;
+
   constructor(profileId: string = 'sedan') {
     this.profile = getProfileById(profileId) || VEHICLE_PROFILES[0];
     this.config = {
@@ -376,6 +396,94 @@ export class ECUSimulator {
     // Initialize all default sensors to AUTO mode
     for (const key of DEFAULT_SENSOR_KEYS) {
       this.sensorModes[key] = { mode: 'auto', manualValue: this.sensors[key] };
+    }
+
+    // Wire the multi-frame UDS stack on top of the simulated CAN endpoint.
+    this.initIsoTpStack();
+  }
+
+  // ============================================================
+  // ISO-TP / UDS multi-frame integration
+  // ============================================================
+  /** Re-initialize the ISO-TP / UDS server stack. Idempotent. */
+  private initIsoTpStack() {
+    this.udsServer = new UdsServer({
+      bootloader: this.bootloader,
+      computeKey: defaultComputeKey,
+      dids: defaultDids({ vin: this.profile.vin, partNumber: this.profile.calibrationId }),
+    });
+    this.udsIsoTp = new IsoTpStack(
+      {
+        txId: this.udsResponseId,
+        rxId: this.udsRequestId,
+        blockSize: 0,
+        stMin: 0,
+      },
+      (frame) => this.emitUdsFrame(frame),
+    );
+    this.udsIsoTp.addListener((req) => {
+      const resp = this.udsServer?.handleRequest(req);
+      if (resp && this.udsIsoTp) {
+        this.udsIsoTp.sendBuffer(resp).catch(() => void 0);
+        this.emitLog(
+          'UDS REQ ' + udsBytesToHex(req),
+          'UDS RESP ' + udsBytesToHex(resp),
+        );
+      }
+    });
+  }
+
+  /** Pass a CAN frame from the bus into the ISO-TP stack (RX path). */
+  public processIsoTpCanFrame(frame: IsoTpCanFrame): void {
+    this.udsIsoTp?.onCanFrame(frame);
+  }
+
+  /** Subscribe to ISO-TP frames produced by the simulated ECU (TX path). */
+  public onUdsFrame(l: (f: IsoTpCanFrame) => void): () => void {
+    this.udsFrameListeners.push(l);
+    return () => {
+      this.udsFrameListeners = this.udsFrameListeners.filter((x) => x !== l);
+    };
+  }
+
+  /** Direct accessor for the bootloader (used by the kill-chain UI to inspect state). */
+  public getBootloaderState(): BootloaderState {
+    return this.bootloader;
+  }
+
+  /** Direct accessor for the UDS server (read-only state inspection). */
+  public getUdsServerState(): { session: string; securityLevel: number; bootActive: boolean } {
+    return {
+      session: this.udsServer?.getSession() ?? 'default',
+      securityLevel: this.udsServer?.getSecurityLevel() ?? 0,
+      bootActive: this.bootloader.isActive(),
+    };
+  }
+
+  /** Configure UDS request/response CAN IDs. Triggers stack re-init. */
+  public setUdsCanIds(requestId: number, responseId: number): void {
+    this.udsRequestId = requestId;
+    this.udsResponseId = responseId;
+    this.initIsoTpStack();
+  }
+
+  private emitUdsFrame(frame: IsoTpCanFrame): void {
+    const stamped: CANFrame = {
+      id: frame.id,
+      data: frame.data,
+      timestamp: Date.now() - this.logStartTime,
+    };
+    this.canFrames.push(stamped);
+    if (this.canFrames.length > 1000) {
+      this.canFrames = this.canFrames.slice(-1000);
+    }
+    for (const l of [...this.udsFrameListeners]) {
+      try {
+        l(frame);
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.error('[uds frame listener]', e);
+      }
     }
   }
 
@@ -606,6 +714,9 @@ export class ECUSimulator {
           }
         }
       }
+
+      // Refresh ISO-TP/UDS server with new VIN / part number from this profile.
+      this.initIsoTpStack();
 
       this.emitState();
     }
@@ -2194,5 +2305,7 @@ export class ECUSimulator {
     this.logListeners = [];
     this.sensorLog = [];
     this.commandLog = [];
+    this.udsIsoTp?.reset();
+    this.udsFrameListeners = [];
   }
 }
