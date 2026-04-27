@@ -1,0 +1,8 @@
+phase,start_us,end_us,duration_ms,frames,description
+bus_conditioning,0,810,0.81,50,Benign powertrain frames to mimic real bus traffic.
+dsc_extended,810,1428,0.62,2,UDS 0x10 sub=0x03 — Extended Diagnostic Session.
+dsc_programming,1428,1591,0.16,2,UDS 0x10 sub=0x02 — Programming Session.
+ecu_reset_bootloader,1591,1877,0.29,2,UDS 0x11 sub=0x02 — KeyOffOnReset → bootloader.
+dsc_programming_post_reset,1877,2044,0.17,2,UDS 0x10 sub=0x02 — re-establish session after reset (now in bootloader).
+security_access,2044,2648,0.60,4,UDS 0x27 sub=0x01 (seed) + sub=0x02 (key).
+firmware_dump,2648,187679,185.03,75561,UDS 0x23 ALFID=0x44 — 129 chunks of 4094 B.

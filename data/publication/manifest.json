@@ -1,0 +1,63 @@
+{
+  "dataset": "ECU-HybridLab UDS Kill-Chain Reproduction Dataset",
+  "version": "0.1.0-seed",
+  "date": "2026-04-27",
+  "files_count": 11,
+  "files": [
+    {
+      "file": "data/can_bus_analysis_report.md",
+      "sha256": "19acec61a897a479d186c12eddde6ad046d6cb56195fd9516b5a1d99d12797da",
+      "size_bytes": 4847
+    },
+    {
+      "file": "data/can_bus_research_findings.md",
+      "sha256": "dca06c0cf71a396902e3c4ddef7f03bed92a0f2146bfd60431579379630a8263",
+      "size_bytes": 6766
+    },
+    {
+      "file": "data/datasets/synthetic_obd2_driving_data.csv",
+      "sha256": "ca65a37468087fa976f24de5bda89af0dd1855098b2ae0d41ca3a37f7c93a2cd",
+      "size_bytes": 716880
+    },
+    {
+      "file": "data/publication/CITATION.cff",
+      "sha256": "a78d583041fc0cdce4f2257d1eeb554aa1085c86d3a71f5b3170ca117863a61b",
+      "size_bytes": 1702
+    },
+    {
+      "file": "data/publication/README.md",
+      "sha256": "1da987f11bb71455087e06dbf663750cd2398d9cf5ef033818c1bf5de0247599",
+      "size_bytes": 5986
+    },
+    {
+      "file": "data/uds_demo_ecu_reset.csv",
+      "sha256": "0ad3dc1404005ab8401dadec59814cdb3f598053628852309f19546a641d1e9c",
+      "size_bytes": 204
+    },
+    {
+      "file": "data/uds_demo_firmware_dump.csv",
+      "sha256": "ee2ecb47ec394cfd1deecb846f6b07695919d7e83bcd95b9b11d8a95ac922a7b",
+      "size_bytes": 6122412
+    },
+    {
+      "file": "data/uds_demo_kill_chain_full.csv",
+      "sha256": "6861064916473c919531cc3dcdcee53dc84c9c9b0e78722cee4ecda3e1f51e7b",
+      "size_bytes": 6126756
+    },
+    {
+      "file": "data/uds_demo_phase_summary.csv",
+      "sha256": "8ceeeef70a0676a05d0d2c9cdf7394a7de4021538c93149e7e38e434a6eac985",
+      "size_bytes": 669
+    },
+    {
+      "file": "data/uds_demo_security_access.csv",
+      "sha256": "c0627c406c3334eaa0bd515fe13bb90d9572bed05b815aea0ea2dc7353119b32",
+      "size_bytes": 370
+    },
+    {
+      "file": "data/uds_demo_session_control.csv",
+      "sha256": "a3be557e7f5c5119efc3ed362248b658b1f430366e8fcf8483671c17e3fe18c5",
+      "size_bytes": 600
+    }
+  ]
+}

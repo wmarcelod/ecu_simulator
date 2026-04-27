@@ -7,6 +7,9 @@
     "build": "vite build",
     "lint": "eslint --quiet ./src",
     "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:ui": "vitest --ui",
     "postinstall": "echo 'Dependencies installed successfully'"
   },
   "dependencies": {
@@ -86,6 +89,7 @@
     "tailwindcss": "^3.4.11",
     "typescript": "^5.5.3",
     "typescript-eslint": "^8.0.1",
-    "vite": "^5.4.1"
+    "vite": "^5.4.1",
+    "vitest": "^2.1.0"
   }
 }

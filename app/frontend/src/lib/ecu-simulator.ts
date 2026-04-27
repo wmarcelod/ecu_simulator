@@ -2,6 +2,12 @@
 // ECU Simulator Engine - Core simulation logic
 // ============================================================
 
+import { BootloaderState, DEFAULT_BOOTLOADER_CONFIG } from './bootloader';
+import { IsoTpStack, defaultIsoTpConfig, CanFrame, bytesToHex as udsBytesToHex } from './iso-tp';
+import { UdsServer, defaultUdsServerConfig, defaultDidMap } from './uds';
+import { UdsClient } from './uds-client';
+import { KillChainOrchestrator, KillChainOptions, KillChainReport, DEFAULT_KILL_CHAIN_OPTIONS, decodeUdsLabel, framesToCsv, CsvFrameRecord } from './kill-chain';
+
 export interface VehicleProfile {
   id: string;
   name: string;
@@ -349,7 +355,7 @@ export class ECUSimulator {
   private dbcSignals: Record<string, number> = {};
 
   // ============================================================
-  // UDS Session and Security State
+  // UDS Session and Security State (legacy ELM327 path)
   // ============================================================
   private udsSession: number = 0x01; // 0x01 = Default Session
   private securityLevel: number = 0; // 0 = locked, 1 = unlocked
@@ -357,6 +363,31 @@ export class ECUSimulator {
   private dtcSettingEnabled: boolean = true; // DTC recording enabled
   private communicationEnabled: boolean = true; // Communication enabled
   private didStorage: Record<string, number[]> = {}; // Writable DID storage
+
+  // ============================================================
+  // ISO-TP / UDS Multi-frame stack + Bootloader (kill-chain demo)
+  // ============================================================
+  /** UDS request CAN ID (tester -> ECU). Default 0x7E0 = engine ECU, ISO 15031-3. */
+  private udsRequestId: number = 0x7E0;
+  /** UDS response CAN ID (ECU -> tester). Default 0x7E8. */
+  private udsResponseId: number = 0x7E8;
+  /** Bootloader emulator (synthetic firmware + memory map + audit trail). */
+  public readonly bootloader: BootloaderState = new BootloaderState();
+  /** Server-side ISO-TP stack (handles incoming requests, sends back responses). */
+  private udsServerIsoTp: IsoTpStack | null = null;
+  /** Client-side ISO-TP stack (the attacker side). */
+  private udsClientIsoTp: IsoTpStack | null = null;
+  /** UDS server (the simulated ECU). */
+  private udsServer: UdsServer | null = null;
+  /** UDS client (the simulated tester / attacker). */
+  public udsClient: UdsClient | null = null;
+  /** Listeners for kill-chain ISO-TP frames (for the live UI monitor). */
+  private udsFrameListeners: Array<(f: CanFrame, dir: 'tx' | 'rx') => void> = [];
+  /** Captured CAN frame log for the kill-chain CSV exporter. */
+  private killChainCanLog: CsvFrameRecord[] = [];
+  /** Pending unfinished ISO-TP message buffer (for the decoded UDS column). */
+  private decodeBufferReq: Uint8Array[] = [];
+  private decodeBufferResp: Uint8Array[] = [];
 
   constructor(profileId: string = 'sedan') {
     this.profile = getProfileById(profileId) || VEHICLE_PROFILES[0];
@@ -377,6 +408,156 @@ export class ECUSimulator {
     for (const key of DEFAULT_SENSOR_KEYS) {
       this.sensorModes[key] = { mode: 'auto', manualValue: this.sensors[key] };
     }
+
+    // Wire up the multi-frame ISO-TP / UDS stack on top of an in-memory CAN
+    // bus loopback. Server side runs the ECU emulator; client side is the
+    // tester used by the kill-chain demo.
+    this.initIsoTpUds();
+  }
+
+  // ============================================================
+  // ISO-TP / UDS Integration
+  // ============================================================
+
+  /**
+   * Build (or rebuild) the dual ISO-TP stacks + UDS server + UDS client.
+   * The two stacks are loopback-wired: anything the server sends is fed to
+   * the client RX path and vice-versa. This lets us run the entire kill
+   * chain in-process (no real bus).
+   */
+  private initIsoTpUds(): void {
+    // Reset previous state if any
+    try { this.udsServerIsoTp?.reset(); } catch (e) { void e; }
+    try { this.udsClientIsoTp?.reset(); } catch (e) { void e; }
+    try { this.udsClient?.dispose(); } catch (e) { void e; }
+
+    const dids = defaultDidMap({
+      vin: this.profile.vin,
+      partNumber: this.profile.calibrationId,
+      bootSoftwareId: DEFAULT_BOOTLOADER_CONFIG.bootSoftwareId,
+    });
+    this.udsServer = new UdsServer(defaultUdsServerConfig(this.bootloader, dids));
+
+    // Server-side stack: receives on 0x7E0, transmits on 0x7E8.
+    this.udsServerIsoTp = new IsoTpStack(
+      defaultIsoTpConfig({ txId: this.udsResponseId, rxId: this.udsRequestId }),
+      (frame) => {
+        // server -> client loopback
+        this.captureFrame(frame, 'rx'); // 'rx' from tester PoV
+        this.udsClientIsoTp?.onCanFrame(frame);
+      },
+    );
+    this.udsServerIsoTp.addListener((req) => {
+      const resp = this.udsServer?.handleRequest(req);
+      if (resp && resp.length > 0) {
+        this.udsServerIsoTp?.sendBuffer(resp).catch(() => void 0);
+      }
+    });
+
+    // Client-side stack: transmits on 0x7E0, receives on 0x7E8.
+    this.udsClientIsoTp = new IsoTpStack(
+      defaultIsoTpConfig({ txId: this.udsRequestId, rxId: this.udsResponseId }),
+      (frame) => {
+        // client -> server loopback
+        this.captureFrame(frame, 'tx');
+        this.udsServerIsoTp?.onCanFrame(frame);
+      },
+    );
+
+    this.udsClient = new UdsClient(this.udsClientIsoTp);
+  }
+
+  /** Snapshot of the UDS server state for the UI panel. */
+  public getUdsServerState(): { session: string; securityLevel: number; bootActive: boolean } {
+    return {
+      session: this.udsServer?.getSession() ?? 'default',
+      securityLevel: this.udsServer?.getSecurityLevel() ?? 0,
+      bootActive: this.bootloader.isActive(),
+    };
+  }
+
+  /** Subscribe to ISO-TP CAN frames for the live monitor. dir is from tester PoV. */
+  public onUdsFrame(l: (f: CanFrame, dir: 'tx' | 'rx') => void): () => void {
+    this.udsFrameListeners.push(l);
+    return () => {
+      this.udsFrameListeners = this.udsFrameListeners.filter((x) => x !== l);
+    };
+  }
+
+  /** Get the captured CAN frame log for CSV export. */
+  public getKillChainCanLog(): CsvFrameRecord[] {
+    return this.killChainCanLog.slice();
+  }
+
+  /** Reset the captured kill-chain CAN log (for a new run). */
+  public resetKillChainLog(): void {
+    this.killChainCanLog = [];
+    this.decodeBufferReq = [];
+    this.decodeBufferResp = [];
+  }
+
+  private captureFrame(frame: CanFrame, dir: 'tx' | 'rx'): void {
+    // Decode UDS label opportunistically (peek at the first non-FC PCI byte).
+    let decoded: string | undefined;
+    if (frame.data.length > 0) {
+      const pciHigh = (frame.data[0] >> 4) & 0xF;
+      if (pciHigh === 0x0 && frame.data[0] !== 0x00) {
+        const len = frame.data[0] & 0xF;
+        if (len > 0 && frame.data.length >= 1 + len) {
+          decoded = decodeUdsLabel(frame.data.slice(1, 1 + len));
+        }
+      } else if (pciHigh === 0x1) {
+        // First frame — decode by SID at offset 2
+        if (frame.data.length >= 3) {
+          decoded = decodeUdsLabel(frame.data.slice(2, 3));
+        }
+      } else if (pciHigh === 0x3) {
+        decoded = `FC fs=${frame.data[0] & 0xF} bs=${frame.data[1]} stmin=${frame.data[2]}`;
+      } else if (pciHigh === 0x2) {
+        decoded = `CF sn=${frame.data[0] & 0xF}`;
+      }
+    }
+    this.killChainCanLog.push({
+      timestampUs: Math.round((frame.timestamp || Date.now()) * 1000),
+      canId: frame.id,
+      direction: dir,
+      dlc: frame.data.length,
+      dataHex: udsBytesToHex(frame.data, ''),
+      decodedUds: decoded,
+    });
+    for (const l of [...this.udsFrameListeners]) {
+      try { l(frame, dir); } catch (e) { void e; }
+    }
+  }
+
+  /**
+   * Build a configured KillChainOrchestrator. Caller invokes `.run()`.
+   * The orchestrator uses our in-process UDS client/server pair, so no
+   * external CAN bus is needed.
+   */
+  public buildKillChain(opts?: Partial<KillChainOptions>): KillChainOrchestrator {
+    if (!this.udsClient) throw new Error('UDS client not initialized');
+    const o: KillChainOptions = { ...DEFAULT_KILL_CHAIN_OPTIONS, ...(opts || {}) };
+    return new KillChainOrchestrator(this.udsClient, this.bootloader, o);
+  }
+
+  /**
+   * Convenience: run the kill chain end-to-end and return the report plus
+   * the BRAIN-format CSV log.
+   */
+  public async runKillChain(opts?: Partial<KillChainOptions>): Promise<{ report: KillChainReport; csv: string }> {
+    this.resetKillChainLog();
+    const kc = this.buildKillChain(opts);
+    const report = await kc.run();
+    const csv = framesToCsv(this.killChainCanLog);
+    return { report, csv };
+  }
+
+  /** Reset the bootloader + UDS state (UI button). */
+  public resetUdsStack(): void {
+    this.bootloader.reset();
+    this.initIsoTpUds();
+    this.resetKillChainLog();
   }
 
   private getIdleState(): SensorState {
