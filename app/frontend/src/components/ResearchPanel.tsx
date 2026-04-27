@@ -1010,6 +1010,8 @@ condicionamento do barramento
 
 O **ECU-HybridLab** reproduz essa sequência em TypeScript inteiramente no navegador, sem hardware — e exporta logs em formato CSV BRAIN-compatível para análise externa.
 
+> **Nota — caminho canônico de reprodução:** os 6 CSVs publicados em \`data/uds_demo_*.csv\` foram gerados pelo script Node.js \`scripts/generate_uds_demo_logs.mjs\`, que executa a kill chain fora do navegador (event loop nativo, sem o \`setTimeout\` clamp ≈ 4 ms do HTML5). O painel "Reproduzir Ataque UDS" no browser é uma **demonstração visual interativa**; para reprodutibilidade bit-a-bit ou para gerar dumps de 512 KiB use o script Node.
+
 ---
 
 ## 2. Métricas da reprodução (seed run)
@@ -1051,10 +1053,10 @@ timestamp_us,can_id,direction,dlc,data_hex,decoded_uds_service
 | ISO 15765-2:2016 §6.5.4 Block size + STmin | full | ✓ |
 | ISO 15765-2:2016 §6.5.5 Flow status (CTS/Wait/Overflow) | full | ✓ |
 | ISO 15765-2:2016 §6.5.6 Timeouts N_Bs/N_Br/N_Cs/N_Cr | parcial | ✓ |
-| ISO 14229-1:2020 §10 DiagnosticSessionControl 0x10 | full | ✓ |
-| ISO 14229-1:2020 §11 ECUReset 0x11 | full | ✓ |
-| ISO 14229-1:2020 §22 ReadMemoryByAddress 0x23 | full | ✓ |
-| ISO 14229-1:2020 §11 SecurityAccess 0x27 | full | ✓ (perfis weak/hardened) |
+| ISO 14229-1:2020 §10.2 DiagnosticSessionControl 0x10 | full | ✓ |
+| ISO 14229-1:2020 §10.3 ECUReset 0x11 | full | ✓ |
+| ISO 14229-1:2020 §10.4 SecurityAccess 0x27 | full | ✓ (perfis weak/hardened) |
+| ISO 14229-1:2020 §11.3 ReadMemoryByAddress 0x23 | full | ✓ |
 
 ---
 
@@ -1074,7 +1076,7 @@ git clone https://github.com/wmarcelod/ecu_simulator.git
 cd ecu_simulator/app/frontend
 npm install
 npm test               # 60+ testes Vitest (iso-tp, uds, bootloader, kill-chain)
-npm run dev            # abre UI em http://localhost:5173 → aba "Reproduzir Ataque (UDS/Bootloader)"
+npm run dev            # abre UI em http://localhost:5173 → aba "Reproduzir Ataque UDS"
 
 # regerar CSVs do seed run
 cd ../..
