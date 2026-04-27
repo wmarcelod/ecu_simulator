@@ -1,0 +1,3 @@
+timestamp_us,can_id,direction,dlc,data_hex,decoded_uds_service
+1632,0x07E0,TX,8,021102CCCCCCCCCC,ISO-TP SF len=2 | UDS REQ  ECUReset
+1877,0x07E8,RX,8,025102CCCCCCCCCC,ISO-TP SF len=2 | UDS RESP ECUReset
