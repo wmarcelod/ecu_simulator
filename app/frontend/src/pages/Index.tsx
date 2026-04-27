@@ -74,7 +74,7 @@ export default function IndexPage() {
             <span className={`text-[10px] ${textMuted} font-mono ml-1`}>v0.11</span>
           </div>
           <div className={`h-3 w-px ${theme === 'dark' ? 'bg-[#1e293b]' : 'bg-gray-200'} mx-1`} />
-          <span className={`text-[11px] ${textMuted} font-mono`}>ELM327 / OBD-II Protocol Emulator</span>
+          <span className={`text-[11px] ${textMuted} font-mono`}>Emulador de Protocolo ELM327 / OBD-II</span>
           <div className="ml-auto flex items-center gap-3">
             <span className={`text-[10px] ${textMuted} font-mono hidden sm:inline`}>Desenvolvido por Marcelo Duchene</span>
           </div>
@@ -130,7 +130,7 @@ export default function IndexPage() {
       <footer className={`border-t ${border} mt-4`}>
         <div className={`max-w-[1400px] mx-auto px-4 py-2 flex items-center justify-between text-[10px] font-mono ${textMuted}`}>
           <span>© 2026 Marcelo Duchene — Todos os direitos reservados</span>
-          <span>ECU SIMULATOR — STANDALONE ELM327 EMULATION</span>
+          <span>SIMULADOR DE ECU — EMULAÇÃO ELM327 SEM HARDWARE</span>
         </div>
       </footer>
     </div>
