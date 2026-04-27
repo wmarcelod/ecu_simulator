@@ -180,7 +180,101 @@ class MLCorrelationModel <<JSON>> {
   +transition_time_constants: TimeConstants
 }
 
-' Relationships
+' === UDS / ISO-TP / Bootloader / Kill Chain (dissertação Cap 6) ===
+
+class BootloaderState {
+  -memory: Uint8Array (5 regions)
+  -securityProfile: 'weak' | 'hardened'
+  -bootActive: boolean
+  -auditTrail: Array<AuditEvent>
+  --
+  +readMemory(addr, len): Uint8Array
+  +writeMemory(addr, bytes): void
+  +eraseMemory(region): void
+  +getSecuritySeed(level): Uint8Array
+  +verifySecurityKey(level, key): boolean
+  +getCurrentMemory(): Uint8Array
+  +enterDownload(): void
+  +exitDownload(): void
+}
+
+class IsoTpStack {
+  -clock: WallClock | VirtualClock
+  -txState: TxStateMachine
+  -rxState: RxStateMachine
+  -bs: number
+  -stmin: number
+  --
+  +sendPdu(payload: Uint8Array): Promise<void>
+  +onFrame(frame: CanFrame): void
+  +onPduReceived(cb): unsubscribe
+  +setBlockSize(bs: number): void
+  +setStMin(ms: number): void
+}
+
+class UdsServer {
+  -bootloader: BootloaderState
+  -session: number (0x01..0x04)
+  -securityLevel: number
+  -p2: number
+  --
+  +handleRequest(req: Uint8Array): Uint8Array
+  -dsc(0x10): Uint8Array
+  -ecuReset(0x11): Uint8Array
+  -clearDtc(0x14): Uint8Array
+  -readDtc(0x19): Uint8Array
+  -readDataById(0x22): Uint8Array
+  -readMemoryByAddress(0x23): Uint8Array
+  -securityAccess(0x27): Uint8Array
+  -writeDataById(0x2E): Uint8Array
+  -routineControl(0x31): Uint8Array
+  -requestDownload(0x34): Uint8Array
+  -transferData(0x36): Uint8Array
+  -transferExit(0x37): Uint8Array
+  -testerPresent(0x3E): Uint8Array
+}
+
+class UdsClient {
+  -isoTp: IsoTpStack
+  --
+  +diagnosticSessionControl(sub): Promise<UdsResponse>
+  +ecuReset(sub): Promise<UdsResponse>
+  +securityAccess(level): Promise<Uint8Array>
+  +readMemoryByAddress(addr, len): Promise<Uint8Array>
+  +readDataByIdentifier(did): Promise<Uint8Array>
+  +testerPresent(): Promise<UdsResponse>
+}
+
+class KillChainOrchestrator {
+  -client: UdsClient
+  -scenario: 'fast' | 'realistic' | 'brute-force'
+  -dumpSize: number
+  -chunkSize: number
+  -onProgress: (e: KillChainEvent) => void
+  --
+  +run(): Promise<KillChainReport>
+  -phaseInit(): Promise<void>
+  -phaseConditioning(): Promise<void>
+  -phaseRecon(): Promise<void>
+  -phaseSession(): Promise<void>
+  -phaseReset(): Promise<void>
+  -phaseSecurity(): Promise<void>
+  -phaseDump(): Promise<Uint8Array>
+  -phaseCleanup(): Promise<void>
+  -phaseVerify(dump): boolean
+}
+
+class KillChainReport {
+  +totalDurationMs: number
+  +dumpedBytes: number
+  +bytesPerSecond: number
+  +dumpChecksum: string
+  +verified: boolean
+  +phases: PhaseStat[]
+  +canFrames: CanFrame[]
+}
+
+' Relationships — original
 ECUSimulator *-- ISensorState : sensors
 ECUSimulator *-- IVehicleProfile : profile
 ECUSimulator *-- ISimulatorConfig : config
@@ -192,5 +286,17 @@ SerialConnection ..> ECUSimulator : bridge serial
 DBCParser --> DBCFile : produz
 DBCFile *-- DBCMessage
 DBCMessage *-- DBCSignal
+
+' Relationships — UDS / ISO-TP / Bootloader / Kill Chain
+ECUSimulator *-- BootloaderState : bootloader
+ECUSimulator *-- UdsServer : udsServer
+ECUSimulator *-- IsoTpStack : udsServerIsoTp
+ECUSimulator *-- IsoTpStack : udsClientIsoTp
+ECUSimulator *-- UdsClient : udsClient
+ECUSimulator ..> KillChainOrchestrator : buildKillChain()
+UdsServer *-- BootloaderState : bootloader
+UdsClient o-- IsoTpStack : transport
+KillChainOrchestrator *-- UdsClient : client
+KillChainOrchestrator --> KillChainReport : produz
 
 @enduml

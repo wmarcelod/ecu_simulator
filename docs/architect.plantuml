@@ -7,12 +7,18 @@ title Arquitetura Geral — Simulador ECU Web-Based
 
 package "Navegador Web (Chrome/Edge)" as Browser {
   package "Frontend React" as FE {
-    [Dashboard] as dash
-    [SensorPanel] as sensor
+    [Dashboard\n(Painel Geral)] as dash
+    [DrivingScenarioSelector\n(Simular Direção)] as driving
+    [MultiECUPanel\n(Múltiplas ECUs)] as multiecu
+    [CANFrameMonitor\n(Tráfego CAN ao Vivo)] as canmon
+    [AttackSimulator\n(Ataques Comuns)] as attack
+    [UdsKillChain\n(Reproduzir Ataque\nUDS/Bootloader)] as kc
     [Terminal ELM327] as term
-    [DTCPanel] as dtc
-    [PlaybackPanel] as play
-    [SchematicPanel] as schem
+    [SensorPanel\n(Sensores)] as sensor
+    [PlaybackPanel\n(Replay de Captura)] as play
+    [DTCPanel\n(Códigos de Falha)] as dtc
+    [SchematicPanel\n(Diagrama do Sistema)] as schem
+    [ResearchPanel\n(Documentação e Pesquisa)] as research
     [ThemeProvider] as theme
   }
 
@@ -20,6 +26,10 @@ package "Navegador Web (Chrome/Edge)" as Browser {
     [ECU Simulator\n(ecu-simulator.ts)] as ecu
     [DBC Parser\n(dbc-parser.ts)] as dbc
     [ML Model\n(sensor_correlation_model.json)] as ml
+    [ISO-TP Stack\n(iso-tp.ts)\nISO 15765-2] as isotp
+    [UDS Server / Client\n(uds.ts, uds-client.ts)\nISO 14229-1] as uds
+    [Bootloader Emulator\n(bootloader.ts)\n5 regions, 512 KiB] as boot
+    [Kill Chain Orchestrator\n(kill-chain.ts)] as killchain
   }
 
   package "Communication" as Comm {
@@ -45,12 +55,24 @@ package "Dispositivos Externos" as External {
 
 ' Conexões Frontend → Core
 dash --> ecu : Estado dos sensores\nControle de cenários
+driving --> ecu : Cenário (idle/accel/cruise/decel)
+multiecu --> ecu : Toggle ECUs ativas
+canmon --> ecu : Stream de frames CAN
+attack --> ecu : Configurar ataques (spoof/fuzz/DoS)
+kc --> killchain : buildKillChain({scenario,dumpSize,chunkSize})
 sensor --> ecu : Modo AUTO/MANUAL\nValores manuais
 term --> ecu : Comandos ELM327\nRespostas OBD-II
 dtc --> ecu : Gerenciar DTCs
 play --> ecu : Logs de sessão
+research --> ecu : Documentação inline\n(MD renderer)
 dbc --> ecu : Perfis de veículos\n(DBC → VehicleProfile)
 ml --> ecu : Coeficientes de regressão\nCorrelações\nRegras físicas
+
+' Kill chain stack (dissertação Cap 6)
+killchain --> uds : UdsClient.diagnosticSessionControl()\n.ecuReset() / .securityAccess()\n.readMemoryByAddress()
+uds --> isotp : SF / FF / CF / FC frames
+isotp --> ecu : loopback CAN frames\n(0x7E0 / 0x7E8)
+uds --> boot : memoria, security seed/key,\nrequestDownload/transferData
 
 ' Conexões Core → Hardware
 ecu --> serial : Dados serializados\n(JSON/texto)
