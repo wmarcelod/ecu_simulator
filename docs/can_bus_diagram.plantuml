@@ -50,4 +50,17 @@ note as N1
   - Terminação: 120Ω em cada extremidade
   - Arbitragem: CSMA/CD + prioridade por ID
 end note
+
+note as N2
+  **CAN IDs canônicos (modo diagnóstico)**
+  - **0x7DF**: OBD-II broadcast request (Mode 01..0A)
+  - **0x7E0**: UDS request (tester → ECU) — kill chain
+  - **0x7E8**: UDS response (ECU → tester) — kill chain
+  - **0x7E1..0x7E7**: requests para ECUs específicas (multi-ECU)
+  - **0x7E9..0x7EF**: respostas de ECUs específicas
+
+  **Encapsulamento usado pela kill chain:**
+  ISO 15765-2 (ISO-TP) sobre CAN clássico, com SF/FF/CF/FC
+  e flow control (BS, STmin), aplicação UDS ISO 14229-1.
+end note
 @enduml

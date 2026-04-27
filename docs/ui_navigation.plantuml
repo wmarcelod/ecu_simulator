@@ -67,25 +67,113 @@ state "📼 Playback (Tab)" as Playback {
   SessionLog --> Export
 }
 
-state "🔧 Schematic (Tab)" as Schematic {
+state "🔧 Diagrama do Sistema (Tab)" as Schematic {
   state "Diagrama SVG Arduino↔MCP2515" as Diagram
   state "Tabela de Pinagem" as Pinout
   state "Notas Técnicas" as Notes
-  
+
   [*] --> Diagram
   Diagram --> Pinout
   Pinout --> Notes
 }
 
+state "🚗 Simular Direção (Tab)" as Driving {
+  state "Cenário (idle/accel/cruise/decel)" as ScenarioPick
+  state "Throttle / Brake controls" as Pedal
+  [*] --> ScenarioPick
+  ScenarioPick --> Pedal
+}
+
+state "🚙 Múltiplas ECUs (Tab)" as MultiECU {
+  state "Lista de ECUs ativas" as EcuList
+  state "Toggle por ECU" as ToggleEcu
+  [*] --> EcuList
+  EcuList --> ToggleEcu
+}
+
+state "📡 Tráfego CAN ao Vivo (Tab)" as CanMonitor {
+  state "Stream de frames CAN" as Stream
+  state "Filtro por ID/DLC" as Filter
+  state "Pause / Clear" as PauseClear
+  [*] --> Stream
+  Stream --> Filter
+  Filter --> PauseClear
+}
+
+state "💥 Ataques Comuns (Tab)" as Attacks {
+  state "Spoofing (RPM/Speed)" as Spoof
+  state "Replay" as Replay
+  state "Fuzzing" as Fuzz
+  state "DoS" as DoS
+  state "Injeção de DTC" as DtcInject
+  [*] --> Spoof
+  Spoof --> Replay
+  Replay --> Fuzz
+  Fuzz --> DoS
+  DoS --> DtcInject
+}
+
+state "🎯 Reproduzir Ataque (UDS/Bootloader) — value=kill-chain" as KillChain {
+  state "Configurar (cenário, dump, chunk)" as KcConfig
+  state "Executar Kill Chain" as KcRun
+  state "Phase ribbon ao vivo" as KcPhases
+  state "CAN log + Downloads (CSV/BIN/JSON)" as KcDownload
+  [*] --> KcConfig
+  KcConfig --> KcRun
+  KcRun --> KcPhases
+  KcPhases --> KcDownload
+}
+
+state "📚 Documentação e Pesquisa (Tab)" as Research {
+  state "Kill Chain UDS (default)" as ResKc
+  state "Deep Research Report" as ResDeep
+  state "ECU Simulator Design" as ResDesign
+  state "CAN Bus Analysis" as ResAnalysis
+  state "System Architecture" as ResArch
+  [*] --> ResKc
+  ResKc --> ResDeep
+  ResDeep --> ResDesign
+  ResDesign --> ResAnalysis
+  ResAnalysis --> ResArch
+}
+
+Dashboard --> Driving : Tab
+Dashboard --> MultiECU : Tab
+Dashboard --> CanMonitor : Tab
+Dashboard --> Attacks : Tab
+Dashboard --> KillChain : Tab
 Dashboard --> Sensors : Tab
 Dashboard --> Terminal : Tab
 Dashboard --> DTCs : Tab
 Dashboard --> Playback : Tab
 Dashboard --> Schematic : Tab
+Dashboard --> Research : Tab
+Driving --> Dashboard : Tab
+MultiECU --> Dashboard : Tab
+CanMonitor --> Dashboard : Tab
+Attacks --> Dashboard : Tab
+KillChain --> Dashboard : Tab
 Sensors --> Dashboard : Tab
 Terminal --> Dashboard : Tab
 DTCs --> Dashboard : Tab
 Playback --> Dashboard : Tab
 Schematic --> Dashboard : Tab
+Research --> Dashboard : Tab
+
+note bottom
+  **Ordem das abas (Index.tsx)**
+  1. Painel Geral (dashboard)
+  2. Simular Direção (driving)
+  3. Múltiplas ECUs (multi-ecu)
+  4. Tráfego CAN ao Vivo (can)
+  5. Ataques Comuns (attacks)
+  6. Reproduzir Ataque (UDS/Bootloader) (kill-chain) ⭐ aba destacada da dissertação
+  7. Terminal ELM327 (terminal)
+  8. Sensores (sensors)
+  9. Replay de Captura (playback)
+  10. Códigos de Falha (DTC) (dtc)
+  11. Diagrama do Sistema (schematic)
+  12. Documentação e Pesquisa (research)
+end note
 
 @enduml

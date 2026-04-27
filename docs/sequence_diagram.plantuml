@@ -99,4 +99,67 @@ dash -> ecu : setManualValue("rpm", 0)
   end note
 ecu -> ecu : RPM fixo em 0\nSpeed continua em AUTO
 
+== Kill Chain UDS / ISO-TP / Bootloader (Caso Ford / VW T-Cross — dissertação Cap 6) ==
+
+participant "UDS Client\n(Tester)" as udsc
+participant "ISO-TP\n(15765-2)" as isotp
+participant "UDS Server\n(14229)" as udss
+participant "Bootloader" as boot
+
+user -> dash : Aba "Reproduzir Ataque" → Run kill chain
+dash -> ecu : buildKillChain({scenario, dumpSize, chunkSize}).run()
+
+note over udsc, boot
+  CAN IDs canônicos:
+   request:  0x7E0 (Tester → ECU)
+   response: 0x7E8 (ECU → Tester)
+end note
+
+== Fase 1: Diagnostic Session Control 0x10 ==
+udsc -> isotp : sendPdu([0x10, 0x03])  // ExtendedSession
+isotp -> udss : SF: ID=0x7E0 [02 10 03 ...]
+udss --> isotp : positive: [0x50, 0x03, P2, P2*]
+isotp --> udsc : ID=0x7E8 [06 50 03 00 32 01 F4]
+
+== Fase 2: ECU Reset 0x11 ==
+udsc -> isotp : sendPdu([0x11, 0x02])  // KeyOffOnReset
+isotp -> udss : SF: ID=0x7E0 [02 11 02 ...]
+udss -> boot : exitNormal() → enterBoot()
+udss --> udsc : ID=0x7E8 [02 51 02 ...]
+
+== Fase 3: SecurityAccess 0x27 (seed/key) ==
+udsc -> isotp : sendPdu([0x27, 0x01])  // requestSeed
+isotp -> udss : SF: ID=0x7E0 [02 27 01]
+udss -> boot : getSecuritySeed(level=1)
+udss --> udsc : ID=0x7E8 [06 67 01 SEED1..SEED4]
+
+udsc -> udsc : computeKey(seed) (XOR + add no perfil weak)
+udsc -> isotp : sendPdu([0x27, 0x02, KEY1..KEY4])
+isotp -> udss : SF: ID=0x7E0 [06 27 02 KEY1..KEY4]
+udss -> boot : verifySecurityKey(level=1, key)
+udss --> udsc : ID=0x7E8 [02 67 02]   // unlock OK
+
+== Fase 4: ReadMemoryByAddress 0x23 (dump segmentado, 75.561 frames) ==
+loop chunk = 0..(dumpSize/chunkSize)
+  udsc -> isotp : sendPdu([0x23, ALFID, addr, len])
+  isotp -> udss : ISO-TP SF/FF/CF
+  udss -> boot : readMemory(addr, chunkSize)
+  boot --> udss : Uint8Array(chunkSize)
+  udss -> isotp : sendPdu([0x63, ...chunkBytes])
+  isotp -> udsc : ISO-TP FF/CF (segmentado)\nFC com BS/STmin
+end
+
+== Fase 5: Verify ==
+udsc -> udsc : SHA-256(reconstructedFw) == bootloader.checksum?
+dash <-- ecu : KillChainReport\n{totalMs, dumpedBytes,\nthroughput, verified}
+dash -> user : Phase ribbon ✓ + downloads CSV/.bin/JSON
+
+note over user, boot
+  **Métricas seed run (cenário fast):**
+  - 75.623 frames totais
+  - ~187 ms wall-clock (cenário "fast")
+  - ~50–60 s wall-clock (cenário "realistic")
+  - 64 KiB de dump (chunkSize=4096, 16 chunks)
+end note
+
 @enduml
