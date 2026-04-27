@@ -1,0 +1,47 @@
+cff-version: 1.2.0
+message: "If you use this dataset, please cite as follows."
+title: "ECU-HybridLab UDS Kill-Chain Reproduction Dataset"
+version: "0.1.0-seed"
+date-released: "2026-04-27"
+type: dataset
+authors:
+  - family-names: "Duchene"
+    given-names: "Marcelo"
+    affiliation: "Instituto de Ciências Matemáticas e de Computação, Universidade de São Paulo (ICMC/USP)"
+  - family-names: "Branco"
+    given-names: "Kalinka Regina Lucas Jaquie Castelo"
+    affiliation: "ICMC/USP"
+    role: "Advisor"
+url: "https://github.com/wmarcelod/ecu_simulator"
+repository-code: "https://github.com/wmarcelod/ecu_simulator/tree/feat/uds-isotp-bootloader-merged"
+license: CC-BY-4.0
+keywords:
+  - automotive cybersecurity
+  - CAN bus
+  - UDS
+  - ISO 14229
+  - ISO 15765-2
+  - ECU bootloader
+  - firmware extraction
+  - testbed
+  - intrusion detection
+abstract: >-
+  Reproducible CAN bus traces and synthetic firmware images produced by the
+  ECU-HybridLab testbed reproducing the UDS-based bootloader-extraction
+  kill-chain documented in the master's dissertation case study.  Initially
+  observed in Ford instrument clusters and replicated in a Volkswagen T-Cross
+  in field conditions, the chain follows: bus conditioning → 0x10 DSC →
+  0x11 ECU Reset → bootloader entry → 0x27 SecurityAccess seed/key → 0x23
+  ReadMemoryByAddress segmented dump.
+references:
+  - type: article
+    authors:
+      - family-names: "Koscher"
+        given-names: "Karl"
+    title: "Experimental Security Analysis of a Modern Automobile"
+    year: 2010
+  - type: article
+    authors:
+      - family-names: "Green"
+    title: "Exploiting Vulnerabilities in Diagnostic Protocols of Commercial Vehicles"
+    year: 2024
