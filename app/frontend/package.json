@@ -7,6 +7,9 @@
     "build": "vite build",
     "lint": "eslint --quiet ./src",
     "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:ui": "vitest --ui",
     "postinstall": "echo 'Dependencies installed successfully'"
   },
   "dependencies": {
