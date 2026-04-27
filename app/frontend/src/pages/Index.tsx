@@ -84,20 +84,22 @@ export default function IndexPage() {
       {/* Main Content */}
       <main className="max-w-[1400px] mx-auto px-4 py-3">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className={`${bgHeader} border ${border} rounded-md mb-3 h-8 gap-0 p-0`}>
+          {/* overflow-x-auto + flex-nowrap garantem scroll horizontal LOCAL no header
+              em vez de empurrar a página inteira (que estava deslocando o conteúdo). */}
+          <TabsList className={`${bgHeader} border ${border} rounded-md mb-3 h-8 gap-0 p-0 w-full justify-start overflow-x-auto flex-nowrap max-w-full`}>
             {[
               { value: 'dashboard', label: 'Painel Geral' },
               { value: 'driving', label: 'Simular Direção' },
               { value: 'multi-ecu', label: 'Múltiplas ECUs' },
-              { value: 'can', label: 'Tráfego CAN ao Vivo' },
+              { value: 'can', label: 'Tráfego CAN' },
               { value: 'attacks', label: 'Ataques Comuns' },
-              { value: 'kill-chain', label: 'Reproduzir Ataque (UDS/Bootloader)' },
+              { value: 'kill-chain', label: 'Reproduzir Ataque UDS' },
               { value: 'terminal', label: 'Terminal ELM327' },
               { value: 'sensors', label: 'Sensores' },
-              { value: 'playback', label: 'Replay de Captura' },
-              { value: 'dtc', label: 'Códigos de Falha (DTC)' },
-              { value: 'schematic', label: 'Diagrama do Sistema' },
-              { value: 'research', label: 'Documentação e Pesquisa' },
+              { value: 'playback', label: 'Replay' },
+              { value: 'dtc', label: 'Falhas (DTC)' },
+              { value: 'schematic', label: 'Diagrama' },
+              { value: 'research', label: 'Documentação' },
             ].map((tab) => (
               <TabsTrigger
                 key={tab.value}
