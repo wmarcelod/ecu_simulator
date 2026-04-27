@@ -306,6 +306,9 @@ export class KillChainOrchestrator {
     const chunk = this.opts.chunkSize;
     const out = new Uint8Array(total);
     let off = 0;
+    let chunkIdx = 0;
+    // Emit progress every N chunks (≈ 8 KiB regardless of chunk size, capped 1..16)
+    const progressEvery = Math.max(1, Math.min(16, Math.floor(8192 / chunk) || 1));
     while (off < total) {
       const remaining = total - off;
       const take = Math.min(chunk, remaining);
@@ -316,10 +319,15 @@ export class KillChainOrchestrator {
       if (data.length !== take) throw new Error(`0x23 returned ${data.length} bytes, expected ${take}`);
       out.set(data, off);
       off += take;
-      if (((off / chunk) | 0) % 16 === 0) {
+      chunkIdx++;
+      if (chunkIdx % progressEvery === 0 || off >= total) {
         this.emit({ phase: 'dump', timestampMs: this.now(), message: `dumped ${off}/${total} bytes (${((off / total) * 100).toFixed(1)}%)`, bytesAccumulated: off, latencyMs: r.latencyMs });
       }
-      if (this.opts.scenario === 'realistic') await this.client.sleep(5);
+      // Inter-chunk yield: lets the ISO-TP RX state machine on both sides reset
+      // cleanly before the next request. Without this, fast-scenario runs race
+      // and the second chunk hangs indefinitely on the loopback. 1 ms in fast
+      // mode and 5 ms in realistic is enough for the browser scheduler to drain.
+      await this.client.sleep(this.opts.scenario === 'realistic' ? 5 : 1);
     }
     this.emit({ phase: 'dump', timestampMs: this.now(), message: `dump complete: ${out.length} bytes`, bytesAccumulated: out.length });
     this.endPhase();
